@@ -781,8 +781,17 @@ test(
                     `${locale.id} planned a non-mechanical operation: ${op.kind}`
                 )
                 assert.notEqual(op.locale, 'en', 'the source locale is never a sync target')
-                // Every operation names a key English actually has. A plan that invented one
-                // would be writing text no source string backs.
+                // Removal and creation answer opposite questions of en.json. A scaffold is
+                // removed precisely because English dropped the key; everything else writes
+                // against a source string, and inventing a key English does not have would be
+                // writing text nothing backs.
+                if (op.kind === SYNC_OPERATION.SCAFFOLD_REMOVED) {
+                    assert.ok(
+                        !sourceKeys.has(op.key),
+                        `${op.locale} planned to remove '${op.key}', which en.json still has`
+                    )
+                    continue
+                }
                 assert.ok(
                     sourceKeys.has(op.key),
                     `${op.locale} planned ${op.kind} for '${op.key}', which en.json does not have`

@@ -6194,17 +6194,23 @@ fn a_submod_already_in_place_is_not_overwritten() {
     let tmp = TempDir::new().unwrap();
     let cfg = engine_for_game("pd3").unwrap();
     let (legacy, current) = ue4ss_dirs(tmp.path());
-    write_submod(&legacy, "CoolMod", b"-- stale");
-    write_submod(&current, "CoolMod", b"-- current");
+    write_submod(&legacy, "CoolMod", b"-- moved");
+    write_submod(&current, "CoolMod", b"-- already here");
 
     let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
     super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
 
     assert_eq!(
         fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
-        b"-- current"
+        b"-- already here",
+        "the mod standing there keeps its name and content"
     );
-    assert!(legacy.join("CoolMod").exists());
+    assert_eq!(
+        fs::read(current.join("CoolMod (2)/Scripts/main.lua")).unwrap(),
+        b"-- moved",
+        "and the one being moved takes a free name beside it"
+    );
+    assert!(!legacy.join("CoolMod").exists());
 }
 
 #[test]
@@ -6470,114 +6476,111 @@ fn a_missing_companion_is_not_an_error() {
 }
 
 #[test]
-fn a_colliding_name_the_record_does_not_own_gives_up_its_claim() {
-    // Both folders hold CoolMod, and the one at the new path is a different mod. Leaving the
-    // record in place would point it at those files, and uninstalling it would delete them.
+fn a_colliding_name_moves_aside_and_keeps_its_record() {
+    // Both folders hold CoolMod and they are different mods, right down to sharing the same
+    // bootstrap main.lua, which is why comparing markers cannot settle ownership. The mod
+    // being moved takes a free name and the record follows it.
     let tmp = TempDir::new().unwrap();
     let cfg = engine_for_game("pd3").unwrap();
     let (legacy, current) = ue4ss_dirs(tmp.path());
-    write_submod(&legacy, "CoolMod", b"-- the tracked mod");
-    write_submod(&current, "CoolMod", b"-- a different mod");
-    let tracked_hash = compute_sha256_blocking(&legacy.join("CoolMod/Scripts/main.lua"));
+    write_submod(&legacy, "CoolMod", b"-- shared bootstrap");
+    fs::write(legacy.join("CoolMod/Scripts/tracked_only.lua"), b"-- mine").unwrap();
+    write_submod(&current, "CoolMod", b"-- shared bootstrap");
+    fs::write(current.join("CoolMod/Scripts/other_only.lua"), b"-- theirs").unwrap();
 
     let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
-    save_state(
-        &sp,
-        &ModsState {
-            folders: vec![],
-            mods: vec![InstalledMod {
-                uid: "1".into(),
-                filename: "CoolMod".into(),
-                enabled: true,
-                location: Some("ue4ss_mods".into()),
-                sha256: Some(tracked_hash),
-                ..InstalledMod::default()
-            }],
-        },
-    )
-    .unwrap();
+    save_state(&sp, &ue4ss_state(None)).unwrap();
 
     let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
 
-    assert!(
-        state.mods.is_empty(),
-        "the record must not keep claiming another mod's folder"
+    assert_eq!(state.mods.len(), 1, "the record is kept, not dropped");
+    assert_eq!(state.mods[0].filename, "CoolMod (2)");
+    assert_eq!(
+        fs::read(current.join("CoolMod (2)/Scripts/tracked_only.lua")).unwrap(),
+        b"-- mine",
+        "the tracked mod moved whole"
     );
     assert_eq!(
-        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
-        b"-- a different mod",
-        "the other mod's files are untouched"
+        fs::read(current.join("CoolMod/Scripts/other_only.lua")).unwrap(),
+        b"-- theirs",
+        "the mod already there keeps its name and files"
     );
     assert!(
-        legacy.join("CoolMod").is_dir(),
-        "and so are the record's own"
+        !legacy.join("CoolMod").exists(),
+        "nothing is left unscannable"
     );
 }
 
 #[test]
-fn a_colliding_name_the_record_does_own_stays_tracked() {
+fn uninstalling_the_moved_record_leaves_the_other_mod_alone() {
+    // The exact hazard: identical marker bytes, different contents, then an uninstall.
     let tmp = TempDir::new().unwrap();
     let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
     let (legacy, current) = ue4ss_dirs(tmp.path());
-    write_submod(&legacy, "CoolMod", b"-- a stale duplicate");
-    write_submod(&current, "CoolMod", b"-- the tracked mod");
-    let tracked_hash = compute_sha256_blocking(&current.join("CoolMod/Scripts/main.lua"));
+    write_submod(&legacy, "CoolMod", b"-- shared bootstrap");
+    write_submod(&current, "CoolMod", b"-- shared bootstrap");
+    fs::write(current.join("CoolMod/Scripts/other_only.lua"), b"-- theirs").unwrap();
 
-    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
-    save_state(
-        &sp,
-        &ModsState {
-            folders: vec![],
-            mods: vec![InstalledMod {
-                uid: "1".into(),
-                filename: "CoolMod".into(),
-                enabled: true,
-                location: Some("ue4ss_mods".into()),
-                sha256: Some(tracked_hash),
-                ..InstalledMod::default()
-            }],
-        },
-    )
-    .unwrap();
+    let sp = get_state_path(game, cfg);
+    save_state(&sp, &ue4ss_state(None)).unwrap();
+    let state = super::state::reconcile_state(game, &sp, cfg).unwrap();
+    save_state(&sp, &state).unwrap();
 
-    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+    uninstall_mod_op(game, &sp, "1", cfg).unwrap();
 
-    assert_eq!(state.mods.len(), 1, "the record owns what stands there");
-    assert_eq!(state.mods[0].missing, None);
+    assert!(
+        current.join("CoolMod/Scripts/other_only.lua").is_file(),
+        "the other mod's files must survive"
+    );
+    assert!(current.join("CoolMod/Scripts/main.lua").is_file());
+    assert!(
+        !current.join("CoolMod (2)").exists(),
+        "only the record's own copy goes"
+    );
 }
 
 #[test]
-fn a_colliding_name_with_no_recorded_hash_gives_up_its_claim() {
-    // Nothing can say whether the folder at the new path is this record's, and an
-    // unanswerable question is not a yes.
+fn a_moved_record_keeps_loading_under_its_new_name() {
     let tmp = TempDir::new().unwrap();
     let cfg = engine_for_game("pd3").unwrap();
     let (legacy, current) = ue4ss_dirs(tmp.path());
-    write_submod(&legacy, "CoolMod", b"-- one");
-    write_submod(&current, "CoolMod", b"-- two");
-
-    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
-    save_state(
-        &sp,
-        &ModsState {
-            folders: vec![],
-            mods: vec![InstalledMod {
-                uid: "1".into(),
-                filename: "CoolMod".into(),
-                enabled: true,
-                location: Some("ue4ss_mods".into()),
-                ..InstalledMod::default()
-            }],
-        },
+    write_submod(&legacy, "CoolMod", b"-- mine");
+    write_submod(&current, "CoolMod", b"-- theirs");
+    fs::write(
+        current.join("mods.txt"),
+        b"CoolMod : 1
+",
     )
     .unwrap();
 
-    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
-    assert!(state.mods.is_empty());
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(&sp, &ue4ss_state(None)).unwrap();
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    let mods_txt = fs::read_to_string(current.join("mods.txt")).unwrap();
+    assert!(
+        mods_txt.contains("CoolMod (2) : 1"),
+        "the renamed folder needs its own entry or the loader stops reading it: {mods_txt}"
+    );
+    assert!(
+        mods_txt.contains("CoolMod : 1"),
+        "the other mod's entry is untouched"
+    );
 }
 
-fn compute_sha256_blocking(path: &Path) -> String {
-    super::identify::hash_file(path).unwrap().unwrap()
+fn ue4ss_state(sha: Option<&str>) -> ModsState {
+    ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            uid: "1".into(),
+            filename: "CoolMod".into(),
+            enabled: true,
+            location: Some("ue4ss_mods".into()),
+            sha256: sha.map(str::to_string),
+            ..InstalledMod::default()
+        }],
+    }
 }
 
 #[tokio::test]
