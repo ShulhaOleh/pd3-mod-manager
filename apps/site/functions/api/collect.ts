@@ -46,23 +46,21 @@ export async function onRequestPost({
     // Set by Cloudflare's edge itself from the real TCP connection, so the client
     // can't spoof this by sending its own header, Cloudflare overwrites it.
     // Absent under local wrangler pages dev, where no real edge is involved. The
-    // request still forwards, just without geo correction, same as before.
+    // request still forwards without geo correction.
     const clientIp = request.headers.get('CF-Connecting-IP')
-    let body = await request.text()
-    if (clientIp) {
-        try {
-            const parsed = JSON.parse(body)
-            parsed.ip_override = clientIp
-            body = JSON.stringify(parsed)
-        } catch {
-            // Malformed JSON from the client, so forward as-is. GA4 rejects it the
-            // same way it would have without this function in the path.
-        }
+    let body: unknown
+    try {
+        body = await request.json()
+    } catch {
+        return new Response('Invalid JSON', { status: 400 })
     }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        return new Response('Expected a JSON object', { status: 400 })
+    }
+    if (clientIp) Object.assign(body, { ip_override: clientIp })
 
-    // Fire-and-forget: the desktop client never reads this response and GA4 returns nothing
-    // useful, so there's no reason to make the client wait on Google's round trip. waitUntil
-    // keeps the worker alive until the fetch settles after we've already returned 204.
+    // A 204 acknowledges receipt by the proxy, not acceptance into GA4 reports.
+    // Keep delivery off the app's critical path and record upstream failures in Pages logs.
     waitUntil(
         fetch(target, {
             method: 'POST',
@@ -70,11 +68,21 @@ export async function onRequestPost({
                 'Content-Type': 'application/json',
                 'User-Agent': request.headers.get('User-Agent') ?? '',
             },
-            body,
-        }).catch(() => {
-            // GA4 never returns error codes for malformed payloads and the client never reads
-            // this response, so a failed upstream call has nothing to surface.
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(10_000),
         })
+            .then((response) => {
+                if (!response.ok) {
+                    console.error('Analytics upstream rejected request', {
+                        status: response.status,
+                    })
+                }
+                return response.body?.cancel()
+            })
+            .catch(() => {
+                // Fetch errors can contain the target URL and its API secret.
+                console.error('Analytics upstream delivery failed')
+            })
     )
 
     return new Response(null, { status: 204 })

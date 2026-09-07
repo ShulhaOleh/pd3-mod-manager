@@ -12,11 +12,14 @@ async function invoke(opts: {
     body: string
     env?: { MODREX_GA_MEASUREMENT_ID?: string }
     connectingIp?: string
+    upstreamStatus?: number
+    upstreamError?: Error
 }) {
     const captured: Captured[] = []
     const fetchMock = vi.fn(async (input: string | URL, init: RequestInit) => {
         captured.push({ url: new URL(String(input)), init })
-        return new Response(null, { status: 204 })
+        if (opts.upstreamError) throw opts.upstreamError
+        return new Response(null, { status: opts.upstreamStatus ?? 204 })
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -40,6 +43,7 @@ async function invoke(opts: {
 
 afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
 })
 
 describe('onRequestPost validation', () => {
@@ -112,13 +116,66 @@ describe('onRequestPost forwarding', () => {
         expect(JSON.parse(String(captured[0].init.body))).not.toHaveProperty('ip_override')
     })
 
-    it('forwards a malformed body verbatim instead of throwing', async () => {
+    it('rejects malformed JSON before forwarding', async () => {
         const { res, captured } = await invoke({
             query: `?measurement_id=${VALID_ID}&api_secret=s`,
             body: 'not json',
             connectingIp: '203.0.113.7',
         })
+        expect(res.status).toBe(400)
+        expect(captured).toHaveLength(0)
+    })
+
+    it.each(['null', '[]', '"text"', '123'])('rejects non-object JSON: %s', async (body) => {
+        const { res, captured } = await invoke({
+            query: `?measurement_id=${VALID_ID}&api_secret=s`,
+            body,
+        })
+        expect(res.status).toBe(400)
+        expect(captured).toHaveLength(0)
+    })
+
+    it('preserves device, version and measured engagement while correcting the IP', async () => {
+        const payload = {
+            client_id: '123',
+            device: { category: 'desktop', operating_system: 'Linux' },
+            events: [
+                {
+                    name: 'app_activity',
+                    params: { app_version: '0.14.0', engagement_time_msec: 60000 },
+                },
+            ],
+            ip_override: '192.0.2.1',
+        }
+        const { captured } = await invoke({
+            query: `?measurement_id=${VALID_ID}&api_secret=s`,
+            body: JSON.stringify(payload),
+            connectingIp: '203.0.113.7',
+        })
+        expect(JSON.parse(String(captured[0].init.body))).toEqual({
+            ...payload,
+            ip_override: '203.0.113.7',
+        })
+    })
+
+    it('logs non-success upstream status codes', async () => {
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const { res } = await invoke({
+            query: `?measurement_id=${VALID_ID}&api_secret=secret`,
+            body: '{}',
+            upstreamStatus: 503,
+        })
         expect(res.status).toBe(204)
-        expect(String(captured[0].init.body)).toBe('not json')
+        expect(log).toHaveBeenCalledWith('Analytics upstream rejected request', { status: 503 })
+    })
+
+    it('logs transport failures without leaking credentials from the error', async () => {
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        await invoke({
+            query: `?measurement_id=${VALID_ID}&api_secret=secret`,
+            body: '{}',
+            upstreamError: new Error('Failed fetching https://example.com/?api_secret=secret'),
+        })
+        expect(log).toHaveBeenCalledExactlyOnceWith('Analytics upstream delivery failed')
     })
 })

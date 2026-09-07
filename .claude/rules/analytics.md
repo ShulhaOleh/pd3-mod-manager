@@ -7,24 +7,65 @@ paths:
 
 ## Usage analytics (opt-in telemetry)
 
-Paths in this rule are relative to `apps/desktop` unless they already start with
-`apps/desktop`.
+The desktop sends GA4 Measurement Protocol events from Rust through
+`apps/site/functions/api/collect.ts`. `commands/analytics.rs` owns payload construction,
+environment fields, foreground engagement, sessions and delivery. The proxy supplies
+the visitor IP for country attribution and logs upstream failures without credentials.
 
-Anonymous, opt-in usage analytics sent to **GA4 via the Measurement Protocol, from Rust** (`commands/analytics.rs`) — never an in-page `gtag.js` tag. Sending server-side keeps the consent gate in one place, attaches reliable `os`/`arch`/`app_version`, and isn't stripped by the ad/DNS blockers this audience runs. `analytics.rs` is the **only** file that knows the backend is GA4; `send_event` builds the MP payload and is the single swap point for any future backend.
+- Rust call sites use `analytics::track`; renderer call sites use the typed catalog in
+  `src/renderer/src/lib/analytics/events.ts`, through the allowlisted `track_event` command.
+- `lib.rs` starts the tracker before the main window is shown. Activity is reported every
+  minute while focused and on focus loss, including when browsing cached content.
+  `Activity` measures elapsed foreground time once per event and excludes long heartbeat
+  gaps. This measures foreground presence, not keyboard/mouse activity.
+- Session IDs renew after 30 minutes without an event. Events retain their creation
+  timestamp when queued. Delivery is best effort: no retry queue and no guaranteed final
+  flush on process exit.
+- Consent remains opt-in. `track` checks before building an event; `send_event` checks
+  again before sending. `set_analytics_consent` resets accumulated activity when consent
+  changes and emits `consent_granted` on opt-in. Pre-consent time is discarded. The existing
+  random per-install `analyticsId` remains the client ID.
+- Release credentials come from `MODREX_GA_MEASUREMENT_ID` and `MODREX_GA_API_SECRET`.
+  Builds without them send nothing. `MODREX_ANALYTICS_ENDPOINT` overrides the proxy URL
+  for local testing. Never print request URLs with API secrets.
 
-- **Transport**: requests POST to `collect_url()`, which defaults to `https://modrex.net/api/collect` (not Google's domain directly) and is overridable at compile time via `MODREX_ANALYTICS_ENDPOINT` for local testing — see **Testing the proxy locally** below. Sending from Rust instead of the webview only defeats _in-page_ blocking — DNS-level/hosts-file blocklists (Pi-hole, AdGuard Home, NextDNS, "debloat Windows" scripts) and outbound firewalls block `google-analytics.com` for every process on a machine, not just browsers, and this is exactly the tooling this audience runs heavily. A Cloudflare Pages Function in the `modrex-site` repo (`functions/api/collect.ts`) forwards the request verbatim (query string + body, untouched) to GA4's real `mp/collect` endpoint — it deploys automatically whenever `modrex-site` deploys, no separate infra or secrets. This was the root cause of GA4 showing ~0 real users despite real downloads/reviews: most of the audience's own network-level blocking, not a code bug in the old direct-to-Google path.
-- **Entry points**: `track(app, name, params)` is the fire-and-forget helper for Rust-native events; the `track_event` command is the renderer's entry, reached via `api.trackEvent` → the typed catalog in `src/renderer/src/lib/analytics/events.ts`. Call sites never build raw events — add a typed helper to the catalog (renderer) or call `track` at the source (Rust).
-- **Auto-injected params**: every event carries `app_version`, `os`, `arch`, `session_id` (per-launch), and `engagement_time_msec` (a JSON number, not a string — GA4 silently drops/mis-attributes events where it's the wrong type) so GA registers sessions; most carry a `game` dimension. `inject_defaults` only fills keys the caller didn't set.
-- **Consent** is tracked as two plain bools in `settings.json`: `analyticsConsentAsked` (has the first-run dialog been shown) and `analyticsEnabled` (the answer), plus a random `analyticsId` generated lazily on first opt-in. Splitting "asked" from "enabled" avoids a nullable field while still distinguishing "never asked" from "asked, declined" — the `get_analytics_consent` command is the only place that re-collapses them into the `Option<bool>` (`None` = never asked → first-run forced-choice `TelemetryConsentDialog`; `Some(bool)` = explicit choice) the renderer needs, purely as an IPC return value, never as persisted state. **`App.tsx` owns consent as the single source of truth** and passes it to `SettingsPage` — the Settings toggle and the reopen-dismissably dialog both route through one handler, so the first-run choice and the toggle never desync. `send_event` no-ops unless `analyticsEnabled` is `true` — the one consent gate.
-- **Where events emit**: Rust-native at command choke points — `app_started` (lib.rs setup), `index_refresh` (mod*index.rs, with download outcome), `game_launched`/`launch_without_mods` (launchers/mod.rs), `mod_installed`/`mod_uninstalled`/`mod_enabled`/`mod_disabled` (mods/mod.rs — the `enable`/`disable`/`uninstall` commands gained an injected `AppHandle` purely for this). `mod_identification` (index.db coverage: total/identified/unidentified, where negative `id` = unidentified) is renderer-side and **change-gated** in `useModIdentificationTracking` so focus-refreshes don't spam it. `search_performed` sends query \_length* + result count, never the query text.
-- **Credentials** are baked in at build time via `option_env!("MODREX_GA_MEASUREMENT_ID")` / `option_env!("MODREX_GA_API_SECRET")` — **absent ⇒ silent no-op**, so dev/local builds never send. Set as GitHub Actions secrets consumed by both `pnpm build` steps in `.github/workflows/release.yml`. `build.rs` declares `cargo:rerun-if-env-changed` for both (plus `MODREX_ANALYTICS_ENDPOINT`) so cached CI builds (rust-cache) recompile when any of them change — plain `option_env!` is **not** tracked by cargo otherwise.
-- The consent dialog links to **Google's** privacy policy (`GOOGLE_PRIVACY_URL`); there is intentionally no Modrex-hosted privacy page.
+## GA4 reports
 
-### Testing the proxy locally
+Use **Active users** with **Last 7 days** for weekly usage. Users are anonymous opted-in
+installations, not a count of downloads or all installations. GA4's date picker allows
+longer comparisons. The report date selection is separate from its saved card layout.
 
-No new release is needed to test either half — both can be verified independently, without ever touching the production `modrex.net` domain:
+Event-scoped custom definitions must match these parameters:
 
-1. **The Cloudflare Function alone**: in `modrex-site`, run `pnpm build` then `pnpm dlx wrangler@latest pages dev dist` (serves the static site + `functions/` at `http://localhost:8788`, no Cloudflare account needed for local dev). Then `curl -i -X POST "http://localhost:8788/api/collect?measurement_id=G-XXXX&api_secret=YYYY" -H "Content-Type: application/json" -d "{\"client_id\":\"test\",\"events\":[{\"name\":\"test_event\",\"params\":{}}]}"` — a `204` means it forwarded successfully (it doesn't tell you whether _Google_ accepted the payload, just that the proxy relayed it).
-2. **The full desktop pipeline against that local proxy**: `MODREX_GA_MEASUREMENT_ID=<id> MODREX_GA_API_SECRET=<secret> MODREX_ANALYTICS_ENDPOINT=http://localhost:8788/api/collect pnpm dev`, then enable analytics in the first-run dialog (or flip the Settings toggle). Watch the `wrangler pages dev` terminal for incoming requests.
-3. **Confirming GA4 actually accepts the payload**: GA4's real `mp/collect` endpoint never returns error codes for malformed events — a `204` only proves the bytes arrived, not that GA accepted them into reporting, and standard reports lag 24-48h either way. For instant feedback, manually add `"debug_mode": 1` to one test event's params (curl directly, or temporarily in `inject_defaults`) — it'll appear in GA4 Realtime → DebugView within seconds. Events with `debug_mode` are excluded from standard reports, so this never pollutes real numbers; remove it before shipping.
-4. Skip `MODREX_ANALYTICS_ENDPOINT` to test against the **real** proxy once `modrex-site` has deployed it (still no modrex-main release needed — `pnpm dev` with just the two GA credential env vars hits production `modrex.net/api/collect` same as a real release build would).
+| Report dimension        | Event parameter |
+| ----------------------- | --------------- |
+| App version             | `app_version`   |
+| Modrex operating system | `os`            |
+| CPU architecture        | `arch`          |
+| Game                    | `game`          |
+| Game launcher           | `launcher`      |
+| Mod format              | `format`        |
+
+Version, OS and architecture accompany every event. Game, launcher and format only apply
+to events supplying them. The desktop also sends GA4's standard `device.category` and
+`device.operating_system`, enabling the built-in OS dimension in releases with this
+implementation. Keep the custom `os` dimension for older releases.
+
+New custom definitions need processing time (typically 24-48 hours) and do not backfill
+older dates. Version means the version used during the selected period: an installation
+that upgrades can appear in two rows. Neither event nor user-scoped dimensions provide
+a retrospective, exact inventory of everyone's currently installed version.
+
+## Verification
+
+- `cargo test commands::analytics::tests --lib` in `apps/desktop/src-tauri` covers timing,
+  session expiry, consent reset, environment fields and the renderer allowlist.
+- `pnpm exec vitest run functions/api/collect.test.ts` in `apps/site` covers forwarding,
+  country attribution and failures. `pnpm typecheck:functions` checks the proxy types.
+- Point `MODREX_ANALYTICS_ENDPOINT` at a local receiver with dummy credentials to inspect
+  requests without sending production events.
+- GA4's `/debug/mp/collect` validates payloads without collecting them. Production
+  `/mp/collect` returning 2xx only proves receipt, not successful processing. Setting
+  `debug_mode` alone does not guarantee exclusion from production reports.
+
+Protocol reference: <https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference>.

@@ -445,13 +445,22 @@ pub fn get_analytics_consent(app: AppHandle) -> Option<bool> {
 #[tauri::command]
 #[specta::specta]
 pub fn set_analytics_consent(app: AppHandle, enabled: bool) {
-    update_settings(&app, |s| {
+    let changed = update_settings(&app, |s| {
+        let changed = s.analytics_enabled != enabled;
         s.analytics_consent_asked = true;
         s.analytics_enabled = enabled;
         if enabled && s.analytics_id.is_none() {
             s.analytics_id = Some(uuid::Uuid::new_v4().to_string());
         }
+        changed
     });
+    if !changed {
+        return;
+    }
+    crate::commands::analytics::reset_activity();
+    if enabled {
+        crate::commands::analytics::track(&app, "consent_granted", serde_json::json!({}));
+    }
 }
 
 /// Returns the persisted anonymous analytics ID, generating and persisting one if absent.
