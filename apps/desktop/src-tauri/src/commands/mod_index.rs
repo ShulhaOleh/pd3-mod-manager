@@ -220,30 +220,46 @@ pub(crate) fn has_game(conn: &rusqlite::Connection, game_name: &str) -> bool {
     .is_ok()
 }
 
+/// The mod a hash names, or None when it names more than one.
+///
+/// An Unreal container ships a pak that holds no content of its own, and the packager emits the
+/// same bytes for every mod built that way: one such hash covers 24 mods in the PAYDAY 3
+/// snapshot. Taking the first row hands 23 of them a stranger's name, so an ambiguous hash
+/// answers nothing and the caller falls through to its other evidence. Rows differing only in
+/// file are one mod with several downloads, not an ambiguity; the newest wins, matching the
+/// order the file listing uses elsewhere.
 pub(crate) fn query_sha256(
     conn: &rusqlite::Connection,
     sha256: &str,
     game_name: &str,
 ) -> Option<IndexMatch> {
-    conn.query_row(
-        "SELECT m.remote_id, m.name, f.remote_id, f.version
-         FROM files f
-         JOIN mods m ON m.id = f.mod_id
-         JOIN sources s ON s.id = m.source_id
-         JOIN games g ON g.id = s.game_id
-         WHERE f.sha256 = ?1 AND g.name = ?2
-         LIMIT 1",
-        rusqlite::params![sha256, game_name],
-        |row| {
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.remote_id, m.name, f.remote_id, f.version
+             FROM files f
+             JOIN mods m ON m.id = f.mod_id
+             JOIN sources s ON s.id = m.source_id
+             JOIN games g ON g.id = s.game_id
+             WHERE f.sha256 = ?1 AND g.name = ?2
+             ORDER BY f.id DESC",
+        )
+        .ok()?;
+    let rows: Vec<IndexMatch> = stmt
+        .query_map(rusqlite::params![sha256, game_name], |row| {
             Ok(IndexMatch {
                 mod_remote_id: row.get(0)?,
                 mod_name: row.get(1)?,
                 file_remote_id: row.get(2)?,
                 version: row.get(3)?,
             })
-        },
-    )
-    .ok()
+        })
+        .ok()?
+        .filter_map(|r| r.ok())
+        .collect();
+    let first = rows.first()?;
+    rows.iter()
+        .all(|r| r.mod_remote_id == first.mod_remote_id)
+        .then(|| first.clone())
 }
 
 /// Resolves a modworkshop mod id to its name and current (latest indexed) file. Used to

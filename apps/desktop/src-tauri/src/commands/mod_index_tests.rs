@@ -279,3 +279,31 @@ fn mod_by_id_picks_newest_file() {
     assert_eq!(m.file_remote_id, 900);
     assert_eq!(m.version, "1.1.0");
 }
+
+#[test]
+fn a_hash_shared_by_two_mods_names_neither() {
+    // Unreal containers built by the same packager ship an identical, contentless pak.
+    // Answering with whichever row came first hands one mod another mod's name.
+    let conn = setup_db();
+    conn.execute_batch(
+        "INSERT INTO files VALUES (6, 1, 501, 'iostorestub', '1.0.0', 'a_P.pak');
+         INSERT INTO files VALUES (7, 2, 601, 'iostorestub', '2.0.0', 'b_P.pak');",
+    )
+    .unwrap();
+    assert!(query_sha256(&conn, "iostorestub", "PAYDAY 3").is_none());
+}
+
+#[test]
+fn several_files_of_one_mod_resolve_to_the_newest() {
+    // One mod publishing the same bytes under two downloads is not an ambiguity.
+    let conn = setup_db();
+    conn.execute_batch(
+        "INSERT INTO files VALUES (6, 1, 501, 'sharedbymod', '1.0.0', 'old.pak');
+         INSERT INTO files VALUES (7, 1, 502, 'sharedbymod', '2.0.0', 'new.pak');",
+    )
+    .unwrap();
+    let hit = query_sha256(&conn, "sharedbymod", "PAYDAY 3").expect("one mod is not ambiguous");
+    assert_eq!(hit.mod_remote_id, 100);
+    assert_eq!(hit.file_remote_id, 502);
+    assert_eq!(hit.version, "2.0.0");
+}

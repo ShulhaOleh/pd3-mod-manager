@@ -525,6 +525,40 @@ pub(crate) async fn hash_untracked(
     futures::future::join_all(sha_futures).await
 }
 
+/// Hashes of the companions beside a scanned file, in the order the target declares them.
+///
+/// The primary file is what identification asks about first, but an Unreal container's pak
+/// holds no content of its own and unrelated mods ship the same bytes there, so it names
+/// nothing on its own. The ucas beside it does, and the indexer records a hash for each
+/// companion it finds, so this is the evidence that separates two mods the pak cannot.
+fn companion_hashes(
+    game_path: &str,
+    target: &engine::ScanTarget,
+    rel_path: &str,
+    enabled: bool,
+) -> Vec<String> {
+    let engine::ModUnit::File { extension, .. } = &target.unit else {
+        return Vec::new();
+    };
+    let base = if enabled {
+        mods_base(game_path, target).join(rel_path)
+    } else {
+        disabled_base(game_path, target).join(format!("{rel_path}{}", target.disabled_suffix()))
+    };
+    target
+        .companions
+        .iter()
+        .filter_map(|companion| {
+            let path = sidecar_path(&base, extension, companion)?;
+            std::fs::read(path).ok()
+        })
+        .map(|bytes| {
+            use sha2::Digest;
+            hex::encode(sha2::Sha256::digest(&bytes))
+        })
+        .collect()
+}
+
 /// Whether a tracked mod's own files are still on disk, in either the active or the disabled
 /// location. Err when the filesystem could not answer at all: a path that cannot be inspected
 /// is not an absent one, and reading it as absent is what would offer the record up for
@@ -818,10 +852,18 @@ pub(crate) fn identify_untracked(
                 })
         };
 
-        let (id, name, file_id, version, update_status, evidence) = match sha256
-            .as_deref()
-            .and_then(|sha| index.and_then(|c| mod_index::query_sha256(c, sha, gname)))
-        {
+        let hash_hit = index.and_then(|c| {
+            sha256
+                .as_deref()
+                .and_then(|sha| mod_index::query_sha256(c, sha, gname))
+                .or_else(|| {
+                    companion_hashes(game_path, entry_target, rel_path, *enabled)
+                        .into_iter()
+                        .find_map(|sha| mod_index::query_sha256(c, &sha, gname))
+                })
+        });
+
+        let (id, name, file_id, version, update_status, evidence) = match hash_hit {
             Some(hit) => (
                 hit.mod_remote_id,
                 hit.mod_name,
