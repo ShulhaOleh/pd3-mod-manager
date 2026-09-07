@@ -94,3 +94,28 @@ pub fn set_enabled(mods_txt_path: &Path, mod_name: &str, enabled: bool) -> Resul
 pub fn read_enabled(mods_txt_path: &Path, mod_name: &str) -> Option<bool> {
     read_enabled_from_mods_txt(mods_txt_path, mod_name)
 }
+
+/// The name UE4SS reads as "load this mod regardless of mods.txt".
+const ENABLED_MARKER: &str = "enabled.txt";
+/// Where Modrex parks that file while the mod is disabled. Parked rather than deleted, so a
+/// mod that shipped one gets it back and a mod that never had one never gains one.
+const PARKED_MARKER: &str = "enabled.txt.disabled";
+
+/// Matches a mod folder's enabled.txt to the state Modrex just recorded.
+///
+/// UE4SS starts mods in two passes: the first honours mods.txt, and the second starts every
+/// folder holding an enabled.txt whatever mods.txt said. Leaving the file in place would mean
+/// reporting a mod disabled while the game still loads it, so the toggle has to move it too.
+pub(crate) fn set_enabled_marker(mod_dir: &Path, enable: bool) -> Result<(), String> {
+    let (from, to) = if enable {
+        (mod_dir.join(PARKED_MARKER), mod_dir.join(ENABLED_MARKER))
+    } else {
+        (mod_dir.join(ENABLED_MARKER), mod_dir.join(PARKED_MARKER))
+    };
+    match from.try_exists() {
+        Ok(false) => return Ok(()),
+        Ok(true) => {}
+        Err(e) => return Err(format!("the loader's own marker could not be read: {e}")),
+    }
+    fs::rename(&from, &to).map_err(|e| format!("the loader's own marker could not be moved: {e}"))
+}

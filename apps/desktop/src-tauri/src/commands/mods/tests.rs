@@ -6323,3 +6323,80 @@ fn a_marker_at_the_archive_root_names_no_mod_folder() {
     let cfg = engine_for_game("pd3").unwrap();
     assert!(classify_archive_dirs(&["scripts/main.lua".to_string()], cfg).is_empty());
 }
+
+// ── UE4SS enabled.txt ──────────────────────────────────────────────────────────
+
+fn ue4ss_mod_fixture(ships_marker: bool) -> (TempDir, PathBuf, PathBuf, &'static ModEngineConfig) {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let base = tmp.path().join("PAYDAY3/Binaries/Win64/UE4SS/Mods");
+    let dir = base.join("CoolMod");
+    fs::create_dir_all(dir.join("Scripts")).unwrap();
+    fs::write(dir.join("Scripts/main.lua"), b"-- lua").unwrap();
+    if ships_marker {
+        fs::write(dir.join("enabled.txt"), b"").unwrap();
+    }
+    fs::write(base.join("mods.txt"), b"CoolMod : 1\n").unwrap();
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: vec![],
+            mods: vec![InstalledMod {
+                uid: "1".into(),
+                filename: "CoolMod".into(),
+                enabled: true,
+                location: Some("ue4ss_mods".into()),
+                ..InstalledMod::default()
+            }],
+        },
+    )
+    .unwrap();
+    (tmp, sp, dir, cfg)
+}
+
+#[test]
+fn disabling_a_submod_parks_the_marker_that_would_load_it_anyway() {
+    let (tmp, sp, dir, cfg) = ue4ss_mod_fixture(true);
+    let game = tmp.path().to_str().unwrap();
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(
+        !dir.join("enabled.txt").exists(),
+        "the loader would still start it"
+    );
+    assert!(dir.join("enabled.txt.disabled").is_file());
+
+    enable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(
+        dir.join("enabled.txt").is_file(),
+        "the mod gets its marker back"
+    );
+    assert!(!dir.join("enabled.txt.disabled").exists());
+}
+
+#[test]
+fn a_submod_that_never_shipped_a_marker_never_gains_one() {
+    let (tmp, sp, dir, cfg) = ue4ss_mod_fixture(false);
+    let game = tmp.path().to_str().unwrap();
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    enable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(!dir.join("enabled.txt").exists());
+    assert!(!dir.join("enabled.txt.disabled").exists());
+}
+
+#[test]
+fn the_mods_txt_entry_still_tracks_the_toggle() {
+    let (tmp, sp, _dir, cfg) = ue4ss_mod_fixture(true);
+    let game = tmp.path().to_str().unwrap();
+    let mods_txt = tmp
+        .path()
+        .join("PAYDAY3/Binaries/Win64/UE4SS/Mods/mods.txt");
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(fs::read_to_string(&mods_txt)
+        .unwrap()
+        .contains("CoolMod : 0"));
+    assert!(!read_state(&sp).unwrap().mods[0].enabled);
+}

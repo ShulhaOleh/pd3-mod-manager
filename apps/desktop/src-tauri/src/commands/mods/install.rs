@@ -634,8 +634,14 @@ fn set_activation_in_mods_txt(
     target: &ScanTarget,
     enable: bool,
 ) -> Result<(), String> {
-    let mods_txt = mods_base(game_path, target).join("mods.txt");
+    let base = mods_base(game_path, target);
+    let mods_txt = base.join("mods.txt");
+    let mod_dir = base.join(&m.filename);
     ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, enable)?;
+    if let Err(e) = ue4ss_modstxt::set_enabled_marker(&mod_dir, enable) {
+        let _ = ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable);
+        return Err(e);
+    }
     for x in state.mods.iter_mut() {
         if x.uid == uid {
             x.enabled = enable;
@@ -645,6 +651,7 @@ fn set_activation_in_mods_txt(
         return Ok(());
     };
     let failure = save_error(e);
+    let _ = ue4ss_modstxt::set_enabled_marker(&mod_dir, !enable);
     Err(
         match ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable) {
             Ok(()) => failure,
