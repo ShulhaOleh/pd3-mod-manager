@@ -51,6 +51,18 @@ fn pd3_epic_detects_proxy_dll() {
 }
 
 #[test]
+fn pd3_detects_the_ue5_dwmapi_proxy() {
+    // The UE5 rebuild (modworkshop id 47771, v0.2.0) proxies dwmapi.dll on every storefront,
+    // replacing the xinput1_3.dll its UE4 predecessor shipped.
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path().join("PAYDAY3").join("Binaries").join("Win64");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dwmapi.dll"), b"").unwrap();
+    assert!(is_installed("pd3", &path_str(&tmp), Some("steam")));
+    assert!(is_installed("pd3", &path_str(&tmp), Some("epic")));
+}
+
+#[test]
 fn pd3_detects_the_older_dxgi_proxy_variant() {
     // The older "PD3 UE4SS / Allow Pak Mods" release (modworkshop id 44048) uses dxgi.dll
     // instead of xinput1_3.dll. It is a separate, independently maintained mod page that
