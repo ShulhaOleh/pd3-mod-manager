@@ -66,9 +66,6 @@ targets = [
             kind = "directory",
             ignore_preset = "diesel_infra",
 
-            # base.lua is DAHM's framework entry point, shared by its own bundled modules and
-            # by genuinely installable sub-mods, so an index match is the only reliable way to
-            # tell them apart.
             discovery = {
                 policy = "markers",
                 markers = [
