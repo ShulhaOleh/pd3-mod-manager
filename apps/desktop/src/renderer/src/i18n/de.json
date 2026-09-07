@@ -420,7 +420,9 @@
             "multipleCopies": "{count} Kopien gefunden – der ausgewählte Launcher entscheidet, welche davon von Modrex modifiziert und gestartet wird."
         },
         "launchOptions": {
-            "title": "Startargumente"
+            "title": "Startargumente",
+            "description": "! Extra arguments passed to the game on launch. Most mods need none.",
+            "xboxNote": "! Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
             "title": "Bereinigung des Absturzberichterstatters",

@@ -420,7 +420,9 @@
             "multipleCopies": "{count} copie trovate; l'app di avvio decide quale mod modrex deve avviare."
         },
         "launchOptions": {
-            "title": "Opzioni di avvio"
+            "title": "Opzioni di avvio",
+            "description": "! Extra arguments passed to the game on launch. Most mods need none.",
+            "xboxNote": "! Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
             "title": "Pulizia rapporto crash",

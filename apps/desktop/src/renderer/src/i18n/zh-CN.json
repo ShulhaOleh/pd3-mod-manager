@@ -420,7 +420,9 @@
             "multipleCopies": "找到 {count} 个游戏副本；所选启动器将决定 Modrex 对哪个副本应用模组并启动。"
         },
         "launchOptions": {
-            "title": "启动选项"
+            "title": "启动选项",
+            "description": "! Extra arguments passed to the game on launch. Most mods need none.",
+            "xboxNote": "! Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
             "title": "崩溃报告器清理",
