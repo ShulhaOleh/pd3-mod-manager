@@ -290,14 +290,23 @@ fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig) {
     let Some(target) = cfg.targets.iter().find(|t| t.tag == "ue4ss_mods") else {
         return;
     };
-    let new_dir = mods_base(game_path, target);
-    let Some(binaries) = new_dir.parent().and_then(|ue4ss| ue4ss.parent()) else {
+    // Only the layout this migration is about: a target sitting in the loader's own UE4SS
+    // folder, whose previous home was the Mods folder one level up. Read off the declared path
+    // rather than walked back from it, so a game whose target was never moved is untouched
+    // instead of being handed a parent directory that means nothing.
+    let [before @ .., "UE4SS", "Mods"] = target.mods_subpath else {
         return;
     };
-    let legacy = binaries.join("Mods");
-    if legacy == new_dir || !legacy.is_dir() {
+    let legacy = before
+        .iter()
+        .fold(Path::new(game_path).to_path_buf(), |acc, part| {
+            acc.join(part)
+        })
+        .join("Mods");
+    if !legacy.is_dir() {
         return;
     }
+    let new_dir = mods_base(game_path, target);
     let Ok(entries) = fs::read_dir(&legacy) else {
         return;
     };
@@ -307,7 +316,14 @@ fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig) {
             continue;
         }
         let to = new_dir.join(&name);
+        // Two folders of one name, and nothing here can say which the tracked record meant.
+        // Moving either way would give that record the other mod's files, so both stay put and
+        // the collision is reported instead.
         if to.exists() {
+            log::warn!(
+                "migrate ue4ss mods: '{}' exists in both the old and new folders, leaving both alone",
+                name.to_string_lossy()
+            );
             continue;
         }
         if let Err(e) = fs::create_dir_all(&new_dir) {

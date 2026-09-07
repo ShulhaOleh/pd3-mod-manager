@@ -6400,3 +6400,71 @@ fn the_mods_txt_entry_still_tracks_the_toggle() {
         .contains("CoolMod : 0"));
     assert!(!read_state(&sp).unwrap().mods[0].enabled);
 }
+
+#[test]
+fn two_same_named_files_in_different_folders_both_stay_visible() {
+    // by_uid keeps the first entry under a key, so two files reducing to one uid would leave
+    // the second out of the list entirely.
+    let mut by_uid: std::collections::HashMap<String, InstalledMod> =
+        std::collections::HashMap::new();
+    by_uid.insert(
+        "CoolMod.pak".to_string(),
+        InstalledMod {
+            uid: "CoolMod.pak".into(),
+            ..InstalledMod::default()
+        },
+    );
+    let uid = super::identify::unique_uid(&by_uid, "001_CoolMod.pak", "Favourites/001_CoolMod.pak");
+    assert_eq!(uid, "Favourites/001_CoolMod.pak");
+    assert!(!by_uid.contains_key(&uid));
+}
+
+#[test]
+fn a_uid_is_found_even_when_the_path_is_taken_too() {
+    let mut by_uid: std::collections::HashMap<String, InstalledMod> =
+        std::collections::HashMap::new();
+    for taken in ["CoolMod.pak", "Favourites/CoolMod.pak"] {
+        by_uid.insert(taken.to_string(), InstalledMod::default());
+    }
+    let uid = super::identify::unique_uid(&by_uid, "CoolMod.pak", "Favourites/CoolMod.pak");
+    assert_eq!(uid, "Favourites/CoolMod.pak#2");
+}
+
+#[test]
+fn a_crime_boss_install_is_not_touched_by_the_ue4ss_migration() {
+    // Its ue4ss target never moved, so there is no legacy folder to walk back to. Reading the
+    // parent of the parent would name CrimeBoss/Binaries/Mods, which means nothing.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("cb").unwrap();
+    let mods = tmp
+        .path()
+        .join("CrimeBoss/Binaries/Win64/Mods/CoolMod/Scripts");
+    fs::create_dir_all(&mods).unwrap();
+    fs::write(mods.join("main.lua"), b"-- lua").unwrap();
+    let stray = tmp.path().join("CrimeBoss/Binaries/Mods/Stray");
+    fs::create_dir_all(&stray).unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert!(mods.join("main.lua").is_file(), "the real mod stays put");
+    assert!(
+        stray.is_dir(),
+        "nothing is moved out of a path that means nothing"
+    );
+}
+
+#[test]
+fn a_companion_that_cannot_be_read_yields_no_hash() {
+    // An interior NUL makes the open fail rather than answer "not found".
+    assert!(super::identify::hash_file(std::path::Path::new("bad\u{0}name.ucas")).is_err());
+}
+
+#[test]
+fn a_missing_companion_is_not_an_error() {
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(
+        super::identify::hash_file(&tmp.path().join("absent.ucas")).unwrap(),
+        None
+    );
+}

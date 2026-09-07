@@ -4,6 +4,7 @@
 
 use super::crimeboss_settings;
 use super::engine;
+use super::naming::log_name;
 use super::*;
 use crate::commands::mod_index;
 use chrono::Utc;
@@ -550,13 +551,66 @@ fn companion_hashes(
         .iter()
         .filter_map(|companion| {
             let path = sidecar_path(&base, extension, companion)?;
-            std::fs::read(path).ok()
-        })
-        .map(|bytes| {
-            use sha2::Digest;
-            hex::encode(sha2::Sha256::digest(&bytes))
+            match hash_file(&path) {
+                Ok(hash) => hash,
+                // A companion that cannot be read is not an absent one. It contributes no
+                // evidence either way, and saying so is what keeps a stranger's name off the
+                // mod when the container was there all along.
+                Err(e) => {
+                    log::warn!("identify: reading {} failed: {e}", log_name(&path));
+                    None
+                }
+            }
         })
         .collect()
+}
+
+/// A uid no entry already holds: the mod's filename, then its path within the target when a
+/// mod of that name is already listed. Filenames repeat across folders, and an entry that
+/// cannot claim a key of its own is dropped rather than shown.
+pub(crate) fn unique_uid(
+    by_uid: &HashMap<String, InstalledMod>,
+    filename: &str,
+    rel_path: &str,
+) -> String {
+    let from_filename = strip_priority_prefix(filename).to_string();
+    if !by_uid.contains_key(&from_filename) {
+        return from_filename;
+    }
+    let from_path = strip_priority_prefix(rel_path).to_string();
+    if !by_uid.contains_key(&from_path) {
+        return from_path;
+    }
+    let mut n = 2;
+    loop {
+        let candidate = format!("{from_path}#{n}");
+        if !by_uid.contains_key(&candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// Hashes a file in chunks, so a container the size of a mod's whole payload never lands in
+/// memory at once. Ok(None) means the file is not there, which is ordinary: most mods ship no
+/// companions at all.
+pub(crate) fn hash_file(path: &std::path::Path) -> std::io::Result<Option<String>> {
+    use sha2::Digest;
+    let mut file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let mut hasher = sha2::Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = std::io::Read::read(&mut file, &mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(Some(hex::encode(hasher.finalize())))
 }
 
 /// Whether a tracked mod's own files are still on disk, in either the active or the disabled
@@ -906,17 +960,20 @@ pub(crate) fn identify_untracked(
         }
 
         // Fall back to the filename uid when file_id already exists, since multi-pak ZIPs
-        // share one file_id.
+        // share one file_id. The last fallback carries the whole scanned path, because a
+        // filename repeats across folders and by_uid keeps the first entry under a key: two
+        // files reduced to one uid would leave the second missing from the list entirely,
+        // which is how a mod refused a relocation could vanish instead of being shown.
         let uid = match file_id {
             Some(fid) => {
                 let candidate = fid.to_string();
                 if by_uid.contains_key(&candidate) {
-                    strip_priority_prefix(&filename).to_string()
+                    unique_uid(&by_uid, &filename, rel_path)
                 } else {
                     candidate
                 }
             }
-            None => strip_priority_prefix(&filename).to_string(),
+            None => unique_uid(&by_uid, &filename, rel_path),
         };
 
         // Evidence is present exactly when this match produced a real modworkshop id; the

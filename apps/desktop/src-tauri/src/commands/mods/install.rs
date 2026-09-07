@@ -639,8 +639,10 @@ fn set_activation_in_mods_txt(
     let mod_dir = base.join(&m.filename);
     ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, enable)?;
     if let Err(e) = ue4ss_modstxt::set_enabled_marker(&mod_dir, enable) {
-        let _ = ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable);
-        return Err(e);
+        return Err(with_undo_failures(
+            e,
+            [ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable)],
+        ));
     }
     for x in state.mods.iter_mut() {
         if x.uid == uid {
@@ -650,15 +652,29 @@ fn set_activation_in_mods_txt(
     let Err(e) = save_state(state_path, state) else {
         return Ok(());
     };
-    let failure = save_error(e);
-    let _ = ue4ss_modstxt::set_enabled_marker(&mod_dir, !enable);
-    Err(
-        match ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable) {
-            Ok(()) => failure,
-            Err(undo) => {
-                format!("{failure}; the loader's own list could not be put back either: {undo}")
-            }
-        },
+    Err(with_undo_failures(
+        save_error(e),
+        [
+            ue4ss_modstxt::set_enabled_marker(&mod_dir, !enable),
+            ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable),
+        ],
+    ))
+}
+
+/// Reports what the loader's files were left holding when an operation failed and putting them
+/// back failed too.
+///
+/// A rollback that did not happen leaves the loader loading something the saved list does not
+/// describe, and the user is the only one who can reconcile that. Swallowing it would report
+/// one failure while hiding a worse one.
+fn with_undo_failures<const N: usize>(failure: String, undo: [Result<(), String>; N]) -> String {
+    let problems: Vec<String> = undo.into_iter().filter_map(|r| r.err()).collect();
+    if problems.is_empty() {
+        return failure;
+    }
+    format!(
+        "{failure}; the loader's own files could not be put back either: {}",
+        problems.join("; ")
     )
 }
 
