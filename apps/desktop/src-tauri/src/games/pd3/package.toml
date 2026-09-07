@@ -25,7 +25,6 @@ news = [
 install = {
     executables = ["PAYDAY3.exe"],
     processes = ["PAYDAY3-Win64-Shipping"],
-    launch_flag = "-fileopenlog",
     stores = [
         {
             provider = "steam",

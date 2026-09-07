@@ -59,12 +59,6 @@
         "maximize": "Развернуть",
         "restore": "Восстановить",
         "close": "Закрыть",
-        "missingLaunchOption": {
-            "title": "Отсутствует параметр запуска",
-            "bodyPre": "рекомендуется для корректной работы большинства модов. Добавьте его в",
-            "location": "Настройки → Параметры запуска",
-            "launchAnyway": "Запустить всё равно"
-        },
         "sisr": {
             "unsupported": "! SISR auto-launch is not supported on this operating system. The game was launched without it.",
             "notInstalled": "! SISR was not found. The game was launched without it.",
@@ -426,11 +420,7 @@
             "multipleCopies": "Найдено копий: {count} — выбранный лаунчер определяет, какую из них изменяет и запускает Modrex."
         },
         "launchOptions": {
-            "title": "Параметры запуска",
-            "descriptionPre": "Дополнительные аргументы, передаваемые PAYDAY 3 при запуске.",
-            "descriptionPost": "рекомендуется для корректной работы большинства модов.",
-            "xboxNotePre": "Параметры запуска не поддерживаются в Microsoft Store. Чтобы включить логирование модов, добавьте",
-            "xboxNotePost": "в приложении Xbox в разделе PAYDAY 3 > Управление > Параметры запуска."
+            "title": "Параметры запуска"
         },
         "crashReporter": {
             "title": "Очистка окна сбоев",

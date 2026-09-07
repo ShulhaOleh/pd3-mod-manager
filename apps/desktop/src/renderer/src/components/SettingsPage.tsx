@@ -592,26 +592,11 @@ export function SettingsPage({
                                         )}
 
                                         <Section title={t('settings.launchOptions.title')}>
-                                            {requiredLaunchFlag &&
-                                                (launcher === 'xbox' ? (
-                                                    <p className="text-xs text-text-subtle">
-                                                        {t('settings.launchOptions.xboxNotePre')}{' '}
-                                                        <span className="font-mono text-text">
-                                                            {requiredLaunchFlag}
-                                                        </span>{' '}
-                                                        {t('settings.launchOptions.xboxNotePost')}
-                                                    </p>
-                                                ) : (
-                                                    <p className="text-xs text-text-subtle">
-                                                        {t('settings.launchOptions.descriptionPre')}{' '}
-                                                        <span className="font-mono text-text">
-                                                            {requiredLaunchFlag}
-                                                        </span>{' '}
-                                                        {t(
-                                                            'settings.launchOptions.descriptionPost'
-                                                        )}
-                                                    </p>
-                                                ))}
+                                            <p className="text-xs text-text-subtle">
+                                                {launcher === 'xbox'
+                                                    ? t('settings.launchOptions.xboxNote')
+                                                    : t('settings.launchOptions.description')}
+                                            </p>
                                             <input
                                                 type="text"
                                                 value={launchOptions}

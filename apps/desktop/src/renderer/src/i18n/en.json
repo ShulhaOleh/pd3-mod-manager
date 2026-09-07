@@ -59,12 +59,6 @@
         "maximize": "Maximize",
         "restore": "Restore",
         "close": "Close",
-        "missingLaunchOption": {
-            "title": "Missing launch option",
-            "bodyPre": "is recommended for most mods to load correctly. Add it in",
-            "location": "Settings > Launch Options",
-            "launchAnyway": "Launch anyway"
-        },
         "sisr": {
             "unsupported": "SISR auto-launch is not supported on this operating system. The game was launched without it.",
             "notInstalled": "SISR was not found. The game was launched without it.",
@@ -427,10 +421,8 @@
         },
         "launchOptions": {
             "title": "Launch Options",
-            "descriptionPre": "Extra arguments passed to PAYDAY 3 on launch.",
-            "descriptionPost": "is recommended for most mods to load correctly.",
-            "xboxNotePre": "Launch options are not supported on Microsoft Store. To enable mod logging, add",
-            "xboxNotePost": "in the Xbox app under PAYDAY 3 > Manage > Launch options."
+            "description": "Extra arguments passed to the game on launch. Most mods need none.",
+            "xboxNote": "Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
             "title": "Crash reporter cleanup",
