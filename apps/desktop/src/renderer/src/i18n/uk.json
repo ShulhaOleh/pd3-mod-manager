@@ -420,7 +420,9 @@
             "multipleCopies": "Знайдено копій: {count} — вибрана програма запуску визначає, яку з них Modrex модифікує та запускає."
         },
         "launchOptions": {
-            "title": "Параметри запуску"
+            "title": "Параметри запуску",
+            "description": "! Extra arguments passed to the game on launch. Most mods need none.",
+            "xboxNote": "! Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
             "title": "Очищення засобу звітування про збої",
