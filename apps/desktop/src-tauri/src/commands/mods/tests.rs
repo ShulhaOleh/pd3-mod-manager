@@ -5549,3 +5549,503 @@ fn a_first_time_drop_lands_in_no_folder() {
     }];
     assert_eq!(dropped_install_folder_id(None, &mods, "MyHud_P.pak"), None);
 }
+
+// ── Reconciliation ownership ────────────────────────────────────────────────
+//
+// Phase 1 of identify_untracked decides whether an untracked file is a tracked mod's own
+// files moved on disk. An IoStore pak is a container stub whose bytes are shared by
+// unrelated mods, so a hash match alone cannot answer that, and uninstall, enable, disable
+// and reorder all resolve through the filename the answer writes. These cover every way a
+// record's files could change hands.
+
+/// Bytes an IoStore pak stub has in common with unrelated mods: the whole distinguishing
+/// payload sits in the ucas beside it.
+const OWN_STUB: &[u8] = b"IOSTORE-STUB-PAK-SHARED-BY-UNRELATED-MODS";
+
+fn own_mods_dir(game: &Path) -> PathBuf {
+    game.join("PAYDAY3/Content/Paks/~mods")
+}
+
+fn own_write_family(game: &Path, stem: &str, pak: &[u8], ucas: &[u8]) {
+    let dir = own_mods_dir(game);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{stem}.pak")), pak).unwrap();
+    fs::write(dir.join(format!("{stem}.ucas")), ucas).unwrap();
+    fs::write(dir.join(format!("{stem}.utoc")), b"toc").unwrap();
+}
+
+fn own_write_lone_pak(game: &Path, stem: &str, pak: &[u8]) {
+    let dir = own_mods_dir(game);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{stem}.pak")), pak).unwrap();
+}
+
+/// (pak, ucas, utoc) presence, so a lost companion is as visible as a lost pak.
+fn own_family_on_disk(game: &Path, stem: &str) -> (bool, bool, bool) {
+    let dir = own_mods_dir(game);
+    (
+        dir.join(format!("{stem}.pak")).is_file(),
+        dir.join(format!("{stem}.ucas")).is_file(),
+        dir.join(format!("{stem}.utoc")).is_file(),
+    )
+}
+
+fn own_read(game: &Path, rel: &str) -> Vec<u8> {
+    fs::read(own_mods_dir(game).join(rel)).unwrap()
+}
+
+fn own_tracked(uid: &str, filename: &str, sha: &str) -> InstalledMod {
+    InstalledMod {
+        uid: uid.to_string(),
+        id: -1,
+        name: format!("Mod {uid}"),
+        filename: filename.to_string(),
+        enabled: true,
+        sha256: Some(sha.to_string()),
+        ..InstalledMod::default()
+    }
+}
+
+async fn own_sha(path: &Path) -> String {
+    compute_sha256(path).await.unwrap()
+}
+
+/// The untracked branch of get_installed, in its order: known set, discovery, hashing,
+/// folder creation, then identification. The index is None, which is what an offline
+/// scan passes.
+async fn own_scan(
+    game: &str,
+    cfg: &'static ModEngineConfig,
+    state: &mut ModsState,
+) -> Vec<InstalledMod> {
+    let known: HashSet<String> = state
+        .mods
+        .iter()
+        .map(|m| {
+            let rel = get_folder_path(&state.folders, m.folder_id.as_deref());
+            let rel_path = match rel {
+                Some(r) => format!("{}/{}", r, m.filename),
+                None => m.filename.clone(),
+            };
+            format!("{}:{}", m.location.as_deref().unwrap_or(""), rel_path)
+        })
+        .collect();
+    let untracked = find_untracked_paks(game, &known, cfg).await;
+    let sha256s = hash_untracked(game, &untracked, cfg).await;
+    let folder_path_to_id = ensure_untracked_folders(state, &untracked);
+    identify_untracked(
+        state,
+        &untracked,
+        &sha256s,
+        &folder_path_to_id,
+        cfg,
+        game,
+        None,
+    )
+}
+
+fn own_filename(mods: &[InstalledMod], uid: &str) -> String {
+    mods.iter()
+        .find(|m| m.uid == uid)
+        .unwrap_or_else(|| panic!("{uid} missing from the scan result"))
+        .filename
+        .clone()
+}
+
+#[tokio::test]
+async fn an_installed_twin_cannot_take_over_a_record_that_still_has_its_files() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA-only-in-A");
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB-only-in-B");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+    let b_ucas = own_read(tmp.path(), "002_ModB_P.ucas");
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    uninstall_mod_op(&game, &sp, "a", cfg).unwrap();
+
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "002_ModB_P"),
+        (true, true, true),
+        "uninstalling A must not touch B"
+    );
+    assert_eq!(
+        own_read(tmp.path(), "002_ModB_P.ucas"),
+        b_ucas,
+        "B's content must be unchanged"
+    );
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "001_ModA_P"),
+        (false, false, false),
+        "A's own family is what uninstall removes"
+    );
+}
+
+#[tokio::test]
+async fn a_twin_cannot_take_over_a_record_whose_files_are_gone() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    // A was deleted outside Modrex. Only the unrelated twin is on disk.
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB-only-in-B");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("002_ModB_P.pak")).await;
+    let b_ucas = own_read(tmp.path(), "002_ModB_P.ucas");
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    uninstall_mod_op(&game, &sp, "a", cfg).unwrap();
+
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "002_ModB_P"),
+        (true, true, true),
+        "B survives even though A's own files were already gone"
+    );
+    assert_eq!(own_read(tmp.path(), "002_ModB_P.ucas"), b_ucas);
+}
+
+#[tokio::test]
+async fn a_companion_target_refuses_a_primary_only_relocation() {
+    // The candidate looks exactly like a renamed A: same pak bytes, nothing else to
+    // compare. Without stored family evidence that is not enough to move ownership.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_lone_pak(tmp.path(), "009_Renamed_P", OWN_STUB);
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("009_Renamed_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "001_ModA_P.pak",
+        "the record keeps its own filename"
+    );
+    assert_eq!(mods.len(), 2, "the candidate is listed on its own");
+}
+
+#[tokio::test]
+async fn two_tracked_records_sharing_a_hash_pick_no_winner() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "003_ModC_P", OWN_STUB, b"CCCC");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("003_ModC_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![
+            own_tracked("a", "001_ModA_P.pak", &sha),
+            own_tracked("b", "002_ModB_P.pak", &sha),
+        ],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "001_ModA_P.pak");
+    assert_eq!(own_filename(&mods, "b"), "002_ModB_P.pak");
+    assert_eq!(mods.len(), 3, "C is listed rather than absorbed");
+}
+
+#[tokio::test]
+async fn two_candidates_sharing_a_hash_pick_no_winner() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB");
+    own_write_family(tmp.path(), "003_ModC_P", OWN_STUB, b"CCCC");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("002_ModB_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "001_ModA_P.pak");
+    assert_eq!(mods.len(), 3, "both candidates stay visible");
+}
+
+#[tokio::test]
+async fn a_present_record_still_counts_when_another_sharing_its_hash_is_gone() {
+    // Diesel target, so the companion policy is not what refuses here. One record is
+    // present and one is missing; filtering the present one out first would leave a
+    // single candidate and a single record and manufacture a match.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let mods_dir = tmp.path().join("mods");
+    for name in ["Present", "Candidate"] {
+        let dir = mods_dir.join(name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("mod.txt"), b"{\"name\":\"shared\"}").unwrap();
+    }
+    let sha = own_sha(&mods_dir.join("Present/mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![
+            own_tracked("present", "Present", &sha),
+            own_tracked("gone", "Deleted", &sha),
+        ],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "gone"), "Deleted");
+    assert_eq!(own_filename(&mods, "present"), "Present");
+    assert_eq!(mods.len(), 3, "Candidate is listed on its own");
+}
+
+#[tokio::test]
+async fn the_outcome_does_not_depend_on_input_order() {
+    // The same two records and the same two candidates every time. Only the order the
+    // records sit in the state file, and the order the candidates are written to disk,
+    // change between runs.
+    async fn run(reversed_records: bool, written_first: &str) -> Vec<(String, String)> {
+        let tmp = TempDir::new().unwrap();
+        let cfg = engine_for_game("pd3").unwrap();
+        let game = tmp.path().to_str().unwrap().to_string();
+        let other = if written_first == "100_First_P" {
+            "900_Last_P"
+        } else {
+            "100_First_P"
+        };
+        own_write_family(tmp.path(), written_first, OWN_STUB, b"XXXX");
+        own_write_family(tmp.path(), other, OWN_STUB, b"YYYY");
+        let sha = own_sha(&own_mods_dir(tmp.path()).join("100_First_P.pak")).await;
+        let a = own_tracked("a", "001_Tracked_P.pak", &sha);
+        let b = own_tracked("b", "002_Tracked_P.pak", &sha);
+        let mut state = ModsState {
+            folders: vec![],
+            mods: if reversed_records {
+                vec![b, a]
+            } else {
+                vec![a, b]
+            },
+        };
+        let mut out: Vec<(String, String)> = own_scan(&game, cfg, &mut state)
+            .await
+            .into_iter()
+            .map(|m| (m.uid, m.filename))
+            .collect();
+        out.sort();
+        out
+    }
+
+    let forward = run(false, "100_First_P").await;
+    let reversed = run(true, "900_Last_P").await;
+    assert_eq!(forward, reversed, "ownership must not follow input order");
+    assert_eq!(
+        forward,
+        vec![
+            ("First_P.pak".to_string(), "100_First_P.pak".to_string()),
+            ("Last_P.pak".to_string(), "900_Last_P.pak".to_string()),
+            ("a".to_string(), "001_Tracked_P.pak".to_string()),
+            ("b".to_string(), "002_Tracked_P.pak".to_string()),
+        ],
+        "both records keep their own files and both candidates are listed"
+    );
+}
+
+#[tokio::test]
+async fn equal_hashes_in_different_targets_do_not_reconcile() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+    // A UE4SS sub-mod whose marker file happens to hold the same bytes.
+    let scripts = tmp
+        .path()
+        .join("PAYDAY3/Binaries/Win64/Mods/SomeLuaMod/Scripts");
+    fs::create_dir_all(&scripts).unwrap();
+    fs::write(scripts.join("main.lua"), OWN_STUB).unwrap();
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    let a = mods.iter().find(|m| m.uid == "a").unwrap();
+    assert_eq!(a.filename, "001_ModA_P.pak");
+    assert_eq!(a.location, None, "the record stays in the paks target");
+    assert!(
+        mods.iter()
+            .any(|m| m.filename == "SomeLuaMod" && m.location.as_deref() == Some("ue4ss_mods")),
+        "the lua mod is listed under its own target"
+    );
+}
+
+#[tokio::test]
+async fn an_unreadable_original_path_is_not_treated_as_absence() {
+    // An interior NUL makes the metadata call fail rather than answer "not found", which
+    // is the one portable way to reach the error arm of the presence check. A record whose
+    // own path cannot be inspected must not become relocatable.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Candidate");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"c\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "Unreadable\u{0}Name", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "Unreadable\u{0}Name",
+        "a record whose path cannot be inspected keeps its filename"
+    );
+    assert_eq!(mods.len(), 2, "the candidate is listed separately");
+}
+
+#[tokio::test]
+async fn a_disabled_original_still_counts_as_present() {
+    // The record's files sit in the disabled area, so it owns an installation and is not
+    // relocatable, even though nothing stands at its active path.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let disabled = tmp.path().join("mods/disabled/Original");
+    fs::create_dir_all(&disabled).unwrap();
+    fs::write(disabled.join("mod.txt"), b"{\"name\":\"o\"}").unwrap();
+    let candidate = tmp.path().join("mods/Elsewhere");
+    fs::create_dir_all(&candidate).unwrap();
+    fs::write(candidate.join("mod.txt"), b"{\"name\":\"o\"}").unwrap();
+    let sha = own_sha(&disabled.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            enabled: false,
+            ..own_tracked("a", "Original", &sha)
+        }],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "Original");
+    assert_eq!(mods.len(), 2);
+}
+
+#[tokio::test]
+async fn a_refused_candidate_is_identified_on_its_own() {
+    // The refusal must not be swallowed by the phase that follows it: the candidate has
+    // to reach identification and appear as its own entry.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA");
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(mods.len(), 2);
+    let b = mods
+        .iter()
+        .find(|m| m.filename == "002_ModB_P.pak")
+        .expect("B is listed");
+    assert_ne!(
+        b.uid, "a",
+        "B must not share the record it was refused against"
+    );
+    assert_eq!(b.sha256.as_deref(), Some(sha.as_str()));
+}
+
+#[tokio::test]
+async fn a_unique_move_in_a_target_without_companions_is_still_followed() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Renamed By Hand");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"m\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "Original Name", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "Renamed By Hand",
+        "a Diesel mod renamed on disk keeps its identity"
+    );
+    assert_eq!(mods.len(), 1, "no duplicate entry is created");
+}
+
+#[tokio::test]
+async fn a_host_pack_record_is_never_relocated() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Candidate");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"c\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            location: Some("host:17160:Assets".to_string()),
+            ..own_tracked("pack", "Some Set", &sha)
+        }],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "pack"), "Some Set");
+    assert_eq!(mods.len(), 2);
+}

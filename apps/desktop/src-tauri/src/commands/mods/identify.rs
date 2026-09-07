@@ -7,7 +7,7 @@ use super::engine;
 use super::*;
 use crate::commands::mod_index;
 use chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tauri::AppHandle;
 use uuid::Uuid;
 
@@ -525,9 +525,126 @@ pub(crate) async fn hash_untracked(
     futures::future::join_all(sha_futures).await
 }
 
-/// Reconciles untracked entries that hash-match an existing tracked mod (Phase 1, mutating
-/// state.mods in place), then identifies the rest via the index with name, number and hash
-/// fallbacks (Phase 2). Returns the full mod list: tracked entries plus newly identified ones.
+/// Whether a tracked mod's own files are still on disk, in either the active or the disabled
+/// location. Err when the filesystem could not answer at all: a path that cannot be inspected
+/// is not an absent one, and reading it as absent is what would offer the record up for
+/// relocation onto another mod's files.
+fn installation_present(
+    game_path: &str,
+    folders: &[ModFolder],
+    m: &InstalledMod,
+    target: &engine::ScanTarget,
+) -> std::io::Result<bool> {
+    let rel = get_folder_path(folders, m.folder_id.as_deref());
+    if active_mod_path(game_path, &m.filename, rel.as_deref(), target).try_exists()? {
+        return Ok(true);
+    }
+    disabled_mod_path(game_path, &m.filename, rel.as_deref(), target).try_exists()
+}
+
+/// Follows a tracked mod whose files were renamed or moved on disk, so it keeps its identity
+/// instead of coming back as a stranger.
+///
+/// Equal bytes are not a shared installation. An Unreal mod's pak can be a container stub
+/// whose payload lives in the ucas beside it, and unrelated mods ship byte-identical stubs, so
+/// a hash match there proves nothing about which files belong to whom. Every later operation
+/// resolves through the filename written here, and uninstall removes that file and its
+/// companions, so a wrong answer deletes another mod's install. Ownership therefore moves only
+/// when all of these hold:
+///
+/// - the record has no installation of its own left anywhere,
+/// - both sides resolve to the same target,
+/// - that target's mods carry no companions, the case where the hashed file can be a stub,
+/// - exactly one record and one candidate in the whole target-and-hash group.
+///
+/// Everything else leaves the record where it is and lets the candidate be identified on its
+/// own. Grouping the whole scan before deciding is what keeps the answer independent of the
+/// order records and directory entries arrive in.
+///
+/// Returns the untracked indices that were adopted. Indices rather than hashes: a hash would
+/// also mark every candidate that was refused, and Phase 2 would drop them.
+fn relocate_moved_mods(
+    state: &mut ModsState,
+    untracked: &[(String, bool, Option<String>)],
+    sha256s: &[Option<String>],
+    folder_path_to_id: &HashMap<String, String>,
+    cfg: &ModEngineConfig,
+    game_path: &str,
+) -> HashSet<usize> {
+    // Every record with a hash counts here, present or missing alike. Dropping the ones that
+    // still have their files first would leave a single record beside a single candidate and
+    // manufacture the uniqueness this is checking for.
+    let mut records: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+    for (row, m) in state.mods.iter().enumerate() {
+        if is_host_pack_location(m.location.as_deref()) {
+            continue;
+        }
+        let Some(sha) = m.sha256.as_deref() else {
+            continue;
+        };
+        records
+            .entry((cfg.target_for(m.location.as_deref()).tag, sha))
+            .or_default()
+            .push(row);
+    }
+
+    let mut candidates: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+    for (entry, ((_, _, location_tag), sha256)) in untracked.iter().zip(sha256s.iter()).enumerate()
+    {
+        let Some(sha) = sha256.as_deref() else {
+            continue;
+        };
+        candidates
+            .entry((cfg.target_for(location_tag.as_deref()).tag, sha))
+            .or_default()
+            .push(entry);
+    }
+
+    let mut accepted: Vec<(usize, usize)> = Vec::new();
+    for (key, entries) in &candidates {
+        let Some(rows) = records.get(key) else {
+            continue;
+        };
+        let ([row], [entry]) = (rows.as_slice(), entries.as_slice()) else {
+            continue;
+        };
+        let m = &state.mods[*row];
+        let target = cfg.target_for(m.location.as_deref());
+        if !target.companions.is_empty() {
+            continue;
+        }
+        match installation_present(game_path, &state.folders, m, target) {
+            Ok(false) => accepted.push((*row, *entry)),
+            Ok(true) => {}
+            Err(e) => log::warn!(
+                "reconcile: cannot inspect the files of '{}' ({}), leaving it where it is: {e}",
+                m.name,
+                m.uid
+            ),
+        }
+    }
+
+    let mut relocated = HashSet::with_capacity(accepted.len());
+    for (row, entry) in accepted {
+        let (rel_path, enabled, _) = &untracked[entry];
+        let (folder_path, filename) = match rel_path.rsplit_once('/') {
+            Some((dir, name)) => (Some(dir), name),
+            None => (None, rel_path.as_str()),
+        };
+        let m = &mut state.mods[row];
+        m.filename = filename.to_string();
+        m.enabled = *enabled;
+        m.folder_id = folder_path.and_then(|fp| folder_path_to_id.get(fp).cloned());
+        m.missing = None;
+        relocated.insert(entry);
+    }
+    relocated
+}
+
+/// Reconciles untracked entries that are a tracked mod's own files moved on disk (Phase 1,
+/// mutating state.mods in place), then identifies the rest via the index with name, number and
+/// hash fallbacks (Phase 2). Returns the full mod list: tracked entries plus newly identified
+/// ones.
 pub(crate) fn identify_untracked(
     state: &mut ModsState,
     untracked: &[(String, bool, Option<String>)],
@@ -537,38 +654,8 @@ pub(crate) fn identify_untracked(
     game_path: &str,
     index: Option<&rusqlite::Connection>,
 ) -> Vec<InstalledMod> {
-    let sha256_to_uid: HashMap<String, String> = state
-        .mods
-        .iter()
-        .filter_map(|m| m.sha256.as_ref().map(|h| (h.clone(), m.uid.clone())))
-        .collect();
-
-    let mut reconcile_ops: Vec<(String, String, bool, Option<String>)> = Vec::new();
-    for ((rel_path, enabled, _), sha256) in untracked.iter().zip(sha256s.iter()) {
-        let Some(sha) = sha256 else { continue };
-        let Some(uid) = sha256_to_uid.get(sha.as_str()) else {
-            continue;
-        };
-        let parts: Vec<&str> = rel_path.split('/').collect();
-        let filename = parts.last().unwrap_or(&"").to_string();
-        let folder_path = if parts.len() > 1 {
-            Some(parts[..parts.len() - 1].join("/"))
-        } else {
-            None
-        };
-        let folder_id = folder_path
-            .as_deref()
-            .and_then(|fp| folder_path_to_id.get(fp).cloned());
-        reconcile_ops.push((uid.clone(), filename, *enabled, folder_id));
-    }
-    for (uid, filename, enabled, folder_id) in reconcile_ops {
-        if let Some(m) = state.mods.iter_mut().find(|m| m.uid == uid) {
-            m.filename = filename;
-            m.enabled = enabled;
-            m.folder_id = folder_id;
-            m.missing = None;
-        }
-    }
+    let relocated =
+        relocate_moved_mods(state, untracked, sha256s, folder_path_to_id, cfg, game_path);
 
     let now = Utc::now().to_rfc3339();
     let mut by_uid: HashMap<String, InstalledMod> = state
@@ -577,11 +664,10 @@ pub(crate) fn identify_untracked(
         .map(|m| (m.uid.clone(), m.clone()))
         .collect();
 
-    for ((rel_path, enabled, location_tag), sha256) in untracked.iter().zip(sha256s.iter()) {
-        if sha256
-            .as_deref()
-            .is_some_and(|s| sha256_to_uid.contains_key(s))
-        {
+    for (entry, ((rel_path, enabled, location_tag), sha256)) in
+        untracked.iter().zip(sha256s.iter()).enumerate()
+    {
+        if relocated.contains(&entry) {
             continue;
         }
 

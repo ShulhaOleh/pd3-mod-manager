@@ -29,6 +29,7 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Fixed a mod being left split between folders when its .ucas or .utoc file could not be moved with its pak.
 - Fixed mod folders and load order being lost when Modrex could not read its saved mod list.
 - Fixed dragging a mod's archive onto Modrex moving that mod out of the folder it was filed in, unlike installing it from its page.
+- Fixed uninstalling a PAYDAY 3 mod deleting another mod's files.
 
 ## 0.14.0
 
