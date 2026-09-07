@@ -21,7 +21,7 @@ use crate::commands::settings;
 use serde_json::{json, Value};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::AppHandle;
 
 /// GA4 credentials, embedded at compile time. Absent in local and dev builds (and any
 /// build without the CI secrets), which makes every send a no-op, so development never
@@ -100,24 +100,28 @@ pub(crate) fn reset_activity() {
     *state = Activity::new(Instant::now(), state.focused);
 }
 
+/// Takes a focus change on the app window as the start or end of foreground time.
+///
+/// Reached from the builder's window-event hook rather than from a handle to the window,
+/// because there is no window to take a handle to when analytics starts: both are declared
+/// hidden and are created and shown as their pages load. The splash is filtered out here, so
+/// the seconds it is up are not counted as the user using the app.
+pub(crate) fn window_focus_changed(app: &AppHandle, label: &str, focused: bool) {
+    if label != "main" {
+        return;
+    }
+    {
+        let mut state = activity().lock().unwrap_or_else(|e| e.into_inner());
+        state.advance(Instant::now());
+        state.focused = focused;
+    }
+    if !focused {
+        track(app, "app_activity", json!({}));
+    }
+}
+
 /// Records foreground time even when the user is only reading or browsing cached data.
 pub(crate) fn start(app: &AppHandle) {
-    let window = app.get_webview_window("main").expect("main window exists");
-    let handle = app.clone();
-    window.on_window_event(move |event| {
-        let WindowEvent::Focused(focused) = event else {
-            return;
-        };
-        {
-            let mut state = activity().lock().unwrap_or_else(|e| e.into_inner());
-            state.advance(Instant::now());
-            state.focused = *focused;
-        }
-        if !focused {
-            track(&handle, "app_activity", json!({}));
-        }
-    });
-
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {

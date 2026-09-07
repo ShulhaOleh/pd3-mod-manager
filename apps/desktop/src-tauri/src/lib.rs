@@ -5,7 +5,7 @@ mod games;
 #[cfg(windows)]
 mod windows_fullscreen;
 
-use tauri::{webview::PageLoadEvent, Manager};
+use tauri::{webview::PageLoadEvent, Manager, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 fn route_deep_link(app: &tauri::AppHandle, url: &tauri::Url) {
@@ -169,6 +169,15 @@ pub fn run() {
         .manage(discord_state)
         .register_uri_scheme_protocol("thumb", |ctx, request| {
             commands::thumbnails::handle_thumb_protocol(ctx.app_handle(), request)
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::Focused(focused) = event {
+                commands::analytics::window_focus_changed(
+                    window.app_handle(),
+                    window.label(),
+                    *focused,
+                );
+            }
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
