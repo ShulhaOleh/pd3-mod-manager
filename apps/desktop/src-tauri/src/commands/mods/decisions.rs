@@ -4,6 +4,7 @@
 
 use super::engine::{ModEngineConfig, ModUnit, ScanTarget};
 use super::naming;
+use super::staged::NameSource;
 use super::unit_filename;
 use std::path::Path;
 
@@ -38,14 +39,20 @@ pub fn resyncs_enabled_flags(cfg: &ModEngineConfig) -> bool {
 
 /// Filename for an install identified by a mod name, where the directory fallback is the
 /// name the staged directory already carries.
+///
+/// A file unit whose target keeps archive filenames uses the staged name instead, but only
+/// when staging actually carried one: a bare download has no archive to take a name from, and
+/// its staged file is named after nothing but a uuid.
 pub fn install_filename_from_mod_name(
     cfg: &ModEngineConfig,
     target: &ScanTarget,
     mod_name: &str,
     tmp: &Path,
+    name_source: NameSource,
 ) -> String {
     match &target.unit {
-        ModUnit::File { extension, .. } => unit_filename(mod_name, extension),
+        ModUnit::File { extension, .. } => staged_file_name(target, tmp, name_source)
+            .unwrap_or_else(|| unit_filename(mod_name, extension)),
         ModUnit::Directory { .. } if is_crimeboss(cfg) => naming::mod_folder_name(mod_name),
         ModUnit::Directory { .. } => tmp
             .file_name()
@@ -64,9 +71,13 @@ pub fn install_filename_for_source_file(
     file_id: i64,
     file_type: &str,
     tmp: &Path,
+    name_source: NameSource,
 ) -> String {
     match &target.unit {
         ModUnit::File { extension, .. } => {
+            if let Some(name) = staged_file_name(target, tmp, name_source) {
+                return name;
+            }
             if file_type == "main" {
                 unit_filename(mod_name, extension)
             } else {
@@ -84,6 +95,15 @@ pub fn install_filename_for_source_file(
 
 /// Filename for a dropped archive, whose directory fallback is the stem recovered from the
 /// drop rather than the staged directory's own name.
+/// The name staging gave the file, when the target keeps archive filenames and staging took
+/// that name from an archive.
+fn staged_file_name(target: &ScanTarget, tmp: &Path, name_source: NameSource) -> Option<String> {
+    if !target.keeps_archive_filename() || name_source != NameSource::FromArchive {
+        return None;
+    }
+    tmp.file_name().and_then(|s| s.to_str()).map(str::to_string)
+}
+
 pub fn install_filename_for_dropped(
     cfg: &ModEngineConfig,
     target: &ScanTarget,

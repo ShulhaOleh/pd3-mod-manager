@@ -143,6 +143,7 @@ fn a_discovered_spec_resolves_its_package() {
                     package::Unit::File {
                         family,
                         disabled_suffix: declared_suffix,
+                        ..
                     },
                 ) => {
                     assert_eq!(*extension, family.extension);

@@ -166,12 +166,19 @@ is declared because it does not follow a pattern: pak targets must place it outs
 unit = {
     kind = "file",
     disabled_suffix = ".disabled",
+    filename = "archive",
     family = {
         extension = "pak",
         companions = ["ucas", "utoc"],
     },
 }
 ```
+
+`filename` says what an installed file is named after: `mod_name`, the default, uses
+the mod's own title, and `archive` keeps the name the file had in the archive it came
+from. Use `archive` where the engine reads the filename itself, as Unreal does, since a
+container renamed away from the `_P` its author gave it loses its patch priority. A
+bare download carries no archive name and falls back to the mod title either way.
 
 `kind = "directory"` means one mod is one folder, and requires a `discovery` policy.
 `ignore_preset` names a host list of folders that are never mods. `contains` is set when

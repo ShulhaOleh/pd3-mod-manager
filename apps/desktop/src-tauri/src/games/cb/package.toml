@@ -80,6 +80,7 @@ targets = [
         unit = {
             kind = "file",
             disabled_suffix = ".disabled",
+            filename = "archive",
 
             family = {
                 extension = "pak",

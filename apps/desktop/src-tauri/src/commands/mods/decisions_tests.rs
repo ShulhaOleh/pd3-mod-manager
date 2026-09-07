@@ -1,5 +1,6 @@
 use super::decisions::*;
 use super::engine::{engine_for_game, ModEngineConfig, ScanTarget};
+use super::staged::NameSource;
 use std::path::PathBuf;
 
 fn target<'a>(cfg: &'a ModEngineConfig, tag: &str) -> &'a ScanTarget {
@@ -44,18 +45,36 @@ fn filename_from_mod_name_covers_every_game_and_unit() {
 
     // File units name the mod after itself, whatever the game.
     assert_eq!(
-        install_filename_from_mod_name(pd3_engine(), target(pd3_engine(), "paks"), "CoolMod", &tmp),
+        install_filename_from_mod_name(
+            pd3_engine(),
+            target(pd3_engine(), "paks"),
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
         "CoolMod.pak"
     );
     assert_eq!(
-        install_filename_from_mod_name(cb_engine(), target(cb_engine(), "paks"), "CoolMod", &tmp),
+        install_filename_from_mod_name(
+            cb_engine(),
+            target(cb_engine(), "paks"),
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
         "CoolMod.pak"
     );
 
     // Crime Boss directory units are named after the mod, not the staged directory.
     for tag in ["mods", "ue4ss_mods"] {
         assert_eq!(
-            install_filename_from_mod_name(cb_engine(), target(cb_engine(), tag), "CoolMod", &tmp),
+            install_filename_from_mod_name(
+                cb_engine(),
+                target(cb_engine(), tag),
+                "CoolMod",
+                &tmp,
+                NameSource::FromModDisplayName
+            ),
             "CoolMod",
             "cb {tag}"
         );
@@ -71,7 +90,13 @@ fn filename_from_mod_name_covers_every_game_and_unit() {
         (pd3_engine(), "ue4ss_mods"),
     ] {
         assert_eq!(
-            install_filename_from_mod_name(cfg, target(cfg, tag), "CoolMod", &tmp),
+            install_filename_from_mod_name(
+                cfg,
+                target(cfg, tag),
+                "CoolMod",
+                &tmp,
+                NameSource::FromModDisplayName
+            ),
             "CoolMod",
             "{} {tag}",
             cfg.game_id
@@ -89,12 +114,19 @@ fn directory_fallback_prefers_the_staged_directory_name() {
             raid_engine(),
             target(raid_engine(), "mods"),
             "CoolMod",
-            &tmp
+            &tmp,
+            NameSource::FromModDisplayName
         ),
         "OnDiskName"
     );
     assert_eq!(
-        install_filename_from_mod_name(cb_engine(), target(cb_engine(), "mods"), "CoolMod", &tmp),
+        install_filename_from_mod_name(
+            cb_engine(),
+            target(cb_engine(), "mods"),
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
         "CoolMod"
     );
 }
@@ -104,11 +136,27 @@ fn source_file_filename_separates_extras_from_the_main_download() {
     let tmp = staged_dir();
     let paks = target(pd3_engine(), "paks");
     assert_eq!(
-        install_filename_for_source_file(pd3_engine(), paks, "CoolMod", 42, "main", &tmp),
+        install_filename_for_source_file(
+            pd3_engine(),
+            paks,
+            "CoolMod",
+            42,
+            "main",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
         "CoolMod.pak"
     );
     assert_eq!(
-        install_filename_for_source_file(pd3_engine(), paks, "CoolMod", 42, "optional", &tmp),
+        install_filename_for_source_file(
+            pd3_engine(),
+            paks,
+            "CoolMod",
+            42,
+            "optional",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
         "CoolMod_42.pak"
     );
 
@@ -120,7 +168,8 @@ fn source_file_filename_separates_extras_from_the_main_download() {
             "CoolMod",
             42,
             "optional",
-            &tmp
+            &tmp,
+            NameSource::FromModDisplayName
         ),
         "CoolMod"
     );
@@ -131,7 +180,8 @@ fn source_file_filename_separates_extras_from_the_main_download() {
             "CoolMod",
             42,
             "optional",
-            &tmp
+            &tmp,
+            NameSource::FromModDisplayName
         ),
         "CoolMod"
     );
@@ -270,8 +320,20 @@ fn crime_boss_differs_from_other_games_only_where_production_differs() {
     let pd3_file = target(pd3_engine(), "paks");
 
     assert_ne!(
-        install_filename_from_mod_name(cb_engine(), cb_dir, "CoolMod", &tmp),
-        install_filename_from_mod_name(raid_engine(), raid_dir, "CoolMod", &tmp)
+        install_filename_from_mod_name(
+            cb_engine(),
+            cb_dir,
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
+        install_filename_from_mod_name(
+            raid_engine(),
+            raid_dir,
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        )
     );
     assert_ne!(
         entry_staging(cb_engine(), cb_file, false),
@@ -284,8 +346,20 @@ fn crime_boss_differs_from_other_games_only_where_production_differs() {
 
     // File units agree across games for naming.
     assert_eq!(
-        install_filename_from_mod_name(cb_engine(), cb_file, "CoolMod", &tmp),
-        install_filename_from_mod_name(pd3_engine(), pd3_file, "CoolMod", &tmp)
+        install_filename_from_mod_name(
+            cb_engine(),
+            cb_file,
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        ),
+        install_filename_from_mod_name(
+            pd3_engine(),
+            pd3_file,
+            "CoolMod",
+            &tmp,
+            NameSource::FromModDisplayName
+        )
     );
 }
 
@@ -299,7 +373,8 @@ fn filename_decisions_sanitize_through_naming() {
             pd3_engine(),
             target(pd3_engine(), "paks"),
             "Cool Mod",
-            &tmp
+            &tmp,
+            NameSource::FromModDisplayName
         ),
         "Cool_Mod.pak"
     );

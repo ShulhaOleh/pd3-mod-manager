@@ -3223,6 +3223,7 @@ const fn companion_target(companions: &'static [&'static str]) -> ScanTarget {
         tag: "paks",
         label_key: "mods",
         unit: ModUnit::File {
+            keeps_archive_filename: false,
             extension: "pak",
             disabled_suffix: ".disabled",
             priority_prefix: false,
@@ -3260,6 +3261,7 @@ const VPK_TARGETS: [ScanTarget; 1] = [ScanTarget {
     tag: "paks",
     label_key: "mods",
     unit: ModUnit::File {
+        keeps_archive_filename: false,
         extension: "vpk",
         disabled_suffix: ".off",
         priority_prefix: false,
@@ -3363,7 +3365,13 @@ fn the_install_filename_carries_the_declared_extension() {
     let cfg = &VPK_ENGINE;
     let tmp = TempDir::new().unwrap();
     assert_eq!(
-        decisions::install_filename_from_mod_name(cfg, cfg.primary(), "My Mod", tmp.path()),
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "My Mod",
+            tmp.path(),
+            crate::commands::mods::staged::NameSource::FromModDisplayName,
+        ),
         "My_Mod.vpk"
     );
     assert_eq!(
@@ -6211,4 +6219,83 @@ fn a_game_without_a_ue4ss_target_migrates_nothing() {
     super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
 
     assert!(dir.join("mod.txt").is_file());
+}
+
+// ── Archive filenames on file-unit targets ─────────────────────────────────────
+
+#[test]
+fn an_unreal_pak_keeps_the_name_its_author_gave_it() {
+    // _P is what tells Unreal a container holds patch content, so it has to reach the disk.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
+    let sp = get_state_path(game, cfg);
+    let src = TempDir::new().unwrap();
+    let staged = src.path().join("pakchunk123-Windows_P.pak");
+    fs::write(&staged, b"pak").unwrap();
+    fs::write(src.path().join("pakchunk123-Windows_P.ucas"), b"bulk").unwrap();
+    fs::write(src.path().join("pakchunk123-Windows_P.utoc"), b"toc").unwrap();
+
+    let filename = decisions::install_filename_from_mod_name(
+        cfg,
+        cfg.primary(),
+        "Clean Main Menu (CMM)",
+        &staged,
+        super::staged::NameSource::FromArchive,
+    );
+    assert_eq!(filename, "pakchunk123-Windows_P.pak");
+
+    install_mod_from_path(
+        game,
+        &sp,
+        InstalledMod {
+            uid: "1".into(),
+            filename,
+            enabled: true,
+            ..InstalledMod::default()
+        },
+        &staged,
+        None,
+        cfg,
+        cfg.primary(),
+    )
+    .unwrap();
+
+    let mods_dir = tmp.path().join("PAYDAY3/Content/Paks/~mods");
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.pak").is_file());
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.ucas").is_file());
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.utoc").is_file());
+}
+
+#[test]
+fn a_bare_download_still_takes_the_mods_name() {
+    // Nothing staged an archive name here, so the mod's title is the only readable choice.
+    let cfg = engine_for_game("pd3").unwrap();
+    let staged = std::path::Path::new("/tmp/modrex-mod-9f2c.pak");
+    assert_eq!(
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "Clean Main Menu (CMM)",
+            staged,
+            super::staged::NameSource::FromModDisplayName,
+        ),
+        "Clean_Main_Menu_CMM.pak"
+    );
+}
+
+#[test]
+fn a_diesel_mod_is_unaffected_by_archive_naming() {
+    let cfg = engine_for_game("pd2").unwrap();
+    let staged = std::path::Path::new("/tmp/modrex-mod-abc/Some Folder");
+    assert_eq!(
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "Some Mod",
+            staged,
+            super::staged::NameSource::FromArchive,
+        ),
+        "Some Folder"
+    );
 }

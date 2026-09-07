@@ -414,7 +414,7 @@ pub async fn install_mod(
     let staged::Staged {
         root: tmp,
         cleanup: cleanup_plan,
-        name_source: _,
+        name_source,
         target_tag: location_tag,
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
@@ -492,7 +492,7 @@ pub async fn install_mod(
             .find(|m| m.uid == uid)
             .map(|m| m.filename.clone())
             .unwrap_or_else(|| {
-                decisions::install_filename_from_mod_name(cfg, target, &mod_name, &tmp)
+                decisions::install_filename_from_mod_name(cfg, target, &mod_name, &tmp, name_source)
             });
 
         // If the mod had a single previously-installed entry under a different uid
@@ -581,7 +581,7 @@ pub async fn install_file(
     let staged::Staged {
         root: tmp,
         cleanup: cleanup_plan,
-        name_source: _,
+        name_source,
         target_tag: location_tag,
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
@@ -654,7 +654,13 @@ pub async fn install_file(
             .map(|m| m.filename.clone())
             .unwrap_or_else(|| {
                 decisions::install_filename_for_source_file(
-                    cfg, target, &mod_name, file_id, &file_type, &tmp,
+                    cfg,
+                    target,
+                    &mod_name,
+                    file_id,
+                    &file_type,
+                    &tmp,
+                    name_source,
                 )
             });
 
@@ -733,7 +739,7 @@ pub(crate) async fn install_nexus_download(
     let staged::Staged {
         root: tmp,
         cleanup: cleanup_plan,
-        name_source: _,
+        name_source,
         target_tag: location_tag,
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(app)) {
@@ -772,7 +778,7 @@ pub(crate) async fn install_nexus_download(
         let existing = saved.mods.iter().find(|m| m.uid == uid);
         let folder_id = existing.and_then(|e| e.folder_id.clone());
         let filename = existing.map(|m| m.filename.clone()).unwrap_or_else(|| {
-            decisions::install_filename_from_mod_name(cfg, target, &mod_name, &tmp)
+            decisions::install_filename_from_mod_name(cfg, target, &mod_name, &tmp, name_source)
         });
 
         install_mod_from_path(

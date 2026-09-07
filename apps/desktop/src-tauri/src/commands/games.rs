@@ -77,10 +77,12 @@ fn scan_target(target: &'static package::Target) -> ScanTarget {
             package::Unit::File {
                 family,
                 disabled_suffix,
+                filename,
             } => ModUnit::File {
                 extension: &family.extension,
                 disabled_suffix,
                 priority_prefix: prefixes_filenames(target),
+                keeps_archive_filename: filename.keeps_archive_name(),
             },
             package::Unit::Directory {
                 discovery,

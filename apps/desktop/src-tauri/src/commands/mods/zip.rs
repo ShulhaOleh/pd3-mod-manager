@@ -1508,12 +1508,36 @@ pub fn resolve_archive_download(
                     )))
                 }
                 1 => {
-                    let tmp = std::env::temp_dir()
-                        .join(format!("modrex-mod-{}.{extension}", Uuid::new_v4()));
                     let (index, name) = entries[0].clone();
                     let entry = StagedEntry {
                         source: StagedEntrySource::File { index },
-                        display_name: name,
+                        display_name: name.clone(),
+                    };
+                    // A target that keeps archive filenames needs the name to survive staging,
+                    // so the file is staged under its own name inside a temp directory rather
+                    // than as a uuid-named temp file.
+                    let keeps_name = cfg.primary().keeps_archive_filename();
+                    let parent =
+                        std::env::temp_dir().join(format!("modrex-mod-{}", Uuid::new_v4()));
+                    let (tmp, cleanup) = if keeps_name {
+                        let file_name = Path::new(&name)
+                            .file_name()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or(&name)
+                            .to_string();
+                        std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+                        (
+                            parent.join(file_name),
+                            CleanupPlan::RemoveOwnedDirectory(parent),
+                        )
+                    } else {
+                        let tmp = std::env::temp_dir()
+                            .join(format!("modrex-mod-{}.{extension}", Uuid::new_v4()));
+                        let cleanup = CleanupPlan::RemoveOwnedFileWithSidecars {
+                            path: tmp.clone(),
+                            companions: cfg.primary().companions,
+                        };
+                        (tmp, cleanup)
                     };
                     extract_staged_entry_with_sidecars(
                         &downloaded,
@@ -1521,14 +1545,14 @@ pub fn resolve_archive_download(
                         &tmp,
                         cfg.primary().companions,
                     )?;
-                    let cleanup = CleanupPlan::RemoveOwnedFileWithSidecars {
-                        path: tmp.clone(),
-                        companions: cfg.primary().companions,
-                    };
                     Ok(Staged {
                         root: tmp,
                         cleanup,
-                        name_source: NameSource::FromModDisplayName,
+                        name_source: if keeps_name {
+                            NameSource::FromArchive
+                        } else {
+                            NameSource::FromModDisplayName
+                        },
                         target_tag: None,
                         original_archive: Some(downloaded),
                     })
