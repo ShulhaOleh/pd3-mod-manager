@@ -278,6 +278,48 @@ pub fn load_for_scan(
     }
 }
 
+/// Moves UE4SS sub-mods out of the folder beside the game executable and into the one the
+/// loader's own directory holds, which is where UE4SS 3.x reads them from.
+///
+/// One-time and best effort. Mods left behind are not lost, but the loader never reads them, so
+/// they would show as missing while sitting on disk doing nothing. A sub-mod already present at
+/// the destination wins: it is the one the loader is loading. mods.txt is deliberately not
+/// moved, because the loader ships its own with AllowModsMod enabled and an older copy written
+/// over it would turn the pak-mod bypass off.
+fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig) {
+    let Some(target) = cfg.targets.iter().find(|t| t.tag == "ue4ss_mods") else {
+        return;
+    };
+    let new_dir = mods_base(game_path, target);
+    let Some(binaries) = new_dir.parent().and_then(|ue4ss| ue4ss.parent()) else {
+        return;
+    };
+    let legacy = binaries.join("Mods");
+    if legacy == new_dir || !legacy.is_dir() {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(&legacy) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if name == "mods.txt" {
+            continue;
+        }
+        let to = new_dir.join(&name);
+        if to.exists() {
+            continue;
+        }
+        if let Err(e) = fs::create_dir_all(&new_dir) {
+            log::warn!("migrate ue4ss mods: create_dir_all: {e}");
+            return;
+        }
+        if let Err(e) = fs::rename(entry.path(), &to) {
+            log::warn!("migrate ue4ss mods {}: {e}", log_name(&entry.path()));
+        }
+    }
+}
+
 pub fn reconcile_state(
     game_path: &str,
     state_path: &Path,
@@ -427,6 +469,8 @@ pub fn reconcile_state(
             }
         }
     }
+
+    migrate_ue4ss_mods_folder(game_path, cfg);
 
     let checks: Vec<bool> = state
         .mods

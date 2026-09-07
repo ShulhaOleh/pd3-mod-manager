@@ -45,19 +45,11 @@ install = {
 }
 
 loaders = [
-    # Three proxy DLLs have shipped across this game's UE4SS releases and all three are still on
-    # real installs, so any one of them present counts: dwmapi.dll is the current UE5 build
-    # (47771 v0.2.0), xinput1_3.dll its UE4 predecessor, and dxgi.dll the separate 44048 page
-    # that live mods such as DebugMenuMod still depend on. The Xbox and GamePass build stages
-    # under Binaries/WinGDK, which is why xbox is not a supported storefront here.
     {
         kind = "ue4ss",
         modworkshop_ids = [47771, 44048],
         storefronts = ["steam", "epic"],
         proxy_dlls = ["dwmapi.dll", "xinput1_3.dll", "dxgi.dll"],
-        # A game path already ends in PAYDAY3, the Steam installdir name, so this and every
-        # target path name the inner project folder rather than repeating the installdir.
-        # Verified against a real install.
         install_into = ["PAYDAY3", "Binaries", "Win64"],
     },
 ]
@@ -73,8 +65,6 @@ targets = [
         label = "mods",
         primary = true,
         path = ["PAYDAY3", "Content", "Paks", "~mods"],
-        # Outside Paks/ on purpose: Unreal mounts every subdirectory of Paks, so a backup left
-        # inside would still load.
         backup = ["PAYDAY3", "Content", "~mods.bak"],
         activation = "filesystem",
         load_order = "filename_prefix",
@@ -92,8 +82,8 @@ targets = [
     {
         tag = "ue4ss_mods",
         label = "ue4ss_mods",
-        path = ["PAYDAY3", "Binaries", "Win64", "Mods"],
-        backup = ["PAYDAY3", "Binaries", "Win64", "Mods.bak"],
+        path = ["PAYDAY3", "Binaries", "Win64", "UE4SS", "Mods"],
+        backup = ["PAYDAY3", "Binaries", "Win64", "UE4SS", "Mods.bak"],
         activation = "ue4ss_mods_txt",
         load_order = "none",
 

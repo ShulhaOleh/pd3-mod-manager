@@ -5971,7 +5971,7 @@ async fn equal_hashes_in_different_targets_do_not_reconcile() {
     // A UE4SS sub-mod whose marker file happens to hold the same bytes.
     let scripts = tmp
         .path()
-        .join("PAYDAY3/Binaries/Win64/Mods/SomeLuaMod/Scripts");
+        .join("PAYDAY3/Binaries/Win64/UE4SS/Mods/SomeLuaMod/Scripts");
     fs::create_dir_all(&scripts).unwrap();
     fs::write(scripts.join("main.lua"), OWN_STUB).unwrap();
 
@@ -6125,4 +6125,90 @@ async fn a_host_pack_record_is_never_relocated() {
 
     assert_eq!(own_filename(&mods, "pack"), "Some Set");
     assert_eq!(mods.len(), 2);
+}
+
+// ── UE4SS mods folder migration ────────────────────────────────────────────────
+
+fn ue4ss_dirs(game: &Path) -> (PathBuf, PathBuf) {
+    (
+        game.join("PAYDAY3/Binaries/Win64/Mods"),
+        game.join("PAYDAY3/Binaries/Win64/UE4SS/Mods"),
+    )
+}
+
+fn write_submod(dir: &Path, name: &str, body: &[u8]) {
+    let scripts = dir.join(name).join("Scripts");
+    fs::create_dir_all(&scripts).unwrap();
+    fs::write(scripts.join("main.lua"), body).unwrap();
+}
+
+#[test]
+fn ue4ss_submods_move_to_the_folder_the_loader_reads() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- lua");
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- lua"
+    );
+    assert!(!legacy.join("CoolMod").exists());
+}
+
+#[test]
+fn the_loaders_own_mods_txt_is_left_where_it_is() {
+    // The shipped loader writes its own with AllowModsMod enabled; an older copy moved over
+    // it would turn the pak-mod bypass back off.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(legacy.join("mods.txt"), b"CoolMod : 1").unwrap();
+    fs::create_dir_all(&current).unwrap();
+    fs::write(current.join("mods.txt"), b"AllowModsMod : 1").unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("mods.txt")).unwrap(),
+        b"AllowModsMod : 1"
+    );
+    assert!(legacy.join("mods.txt").is_file());
+}
+
+#[test]
+fn a_submod_already_in_place_is_not_overwritten() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- stale");
+    write_submod(&current, "CoolMod", b"-- current");
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- current"
+    );
+    assert!(legacy.join("CoolMod").exists());
+}
+
+#[test]
+fn a_game_without_a_ue4ss_target_migrates_nothing() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let dir = tmp.path().join("mods/CoolMod");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{}").unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert!(dir.join("mod.txt").is_file());
 }
