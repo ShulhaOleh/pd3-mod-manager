@@ -27,12 +27,12 @@ export const docsGameRegistry: Partial<Record<GameId, DocsGameRegistration>> = {
             {
                 label: 'Pak mods',
                 targetId: 'paks',
-                notes: 'Primary target for pak files. Disabled files are kept under disabled with a .disabled suffix.',
+                notes: 'Primary target for pak files, including the .ucas and .utoc a container mod ships beside its pak. Disabled files are kept under disabled with a .disabled suffix.',
             },
             {
                 label: 'UE4SS mods',
                 targetId: 'ue4ss_mods',
-                notes: 'Used for Lua mods when UE4SS is installed. Modrex excludes bundled UE4SS framework modules from the installed list.',
+                notes: 'Used for Lua mods, inside the UE4SS folder the loader reads. Modrex excludes bundled UE4SS framework modules from the installed list.',
             },
         ],
     },

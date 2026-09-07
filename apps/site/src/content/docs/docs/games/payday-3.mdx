@@ -1,20 +1,43 @@
 ---
 title: PAYDAY 3
-description: Setup notes for PAYDAY 3 launcher support, Unreal pak mods, UE4SS mods, and launch options.
+description: Setup notes for PAYDAY 3 launcher support, the three mod formats, UE4SS, and priority.
 sidebar:
     order: 10
 ---
 
 import GameFacts from '../../../../components/docs/GameFacts.astro'
 
-PAYDAY 3 support is built around Unreal `.pak` mods, with optional UE4SS Lua mods when the UE4SS loader is installed.
+PAYDAY 3 runs on Unreal Engine 5. Modrex installs all three of the shapes its mods come in.
 
 <GameFacts game="pd3" />
 
-## Launch options
+## Mod formats
 
-Most PAYDAY 3 `.pak` mods require `-fileopenlog`. Add it in **Settings - Launch Options** for Steam and Epic Games, or configure it in the launcher if the app cannot write launch options for that launcher.
+**Container mods** ship three files that belong together: a `.pak`, a `.ucas` and a `.utoc`
+sharing one name, usually ending in `_P`. They replace the game's own art, models and interface.
+Modrex keeps the three together through every install, move and removal, and keeps the name the
+author gave them, because the game reads that name: a container renamed away from its `_P` stops
+overriding anything.
+
+**Single pak mods** are one `.pak` on its own, most often replacing sounds. Still current, and
+nothing about them changed with Unreal Engine 5.
+
+**UE4SS mods** are folders of Lua scripts. They need the UE4SS loader, and Modrex installs them
+into the folder that loader reads.
+
+If you copy a container mod in by hand, copy all three files. Two of the three is a mod that
+silently does nothing.
+
+## UE4SS
+
+UE4SS is required for any pak mod to load, not just Lua mods: it carries the bypass that lets the
+game accept files it did not ship. Install it from its mod page like any other mod and Modrex
+recognizes it.
+
+A launch option is no longer part of this. Unreal Engine 5 ignores the `-fileopenlog` argument
+older guides ask for, and nothing needs to be set in Steam, Epic or the Xbox app.
 
 ## Priority
 
-For `.pak` mods, Modrex writes numeric filename prefixes so your visual priority order is reflected on disk. Directory-based UE4SS mods are not renamed for priority.
+For pak mods, Modrex writes numeric filename prefixes so your visual priority order is reflected
+on disk. Directory-based UE4SS mods are not renamed for priority.
