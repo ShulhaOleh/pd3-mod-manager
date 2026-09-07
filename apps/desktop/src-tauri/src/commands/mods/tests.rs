@@ -6299,3 +6299,27 @@ fn a_diesel_mod_is_unaffected_by_archive_naming() {
         "Some Folder"
     );
 }
+
+#[test]
+fn a_lua_submod_is_recognized_whatever_case_its_scripts_folder_uses() {
+    // The UE4SS sub-mods published since the UE5 update ship a lowercase scripts/ folder.
+    let cfg = engine_for_game("pd3").unwrap();
+    for marker in [
+        "RT-FOV-2.4/scripts/main.lua",
+        "RT-FOV-2.4/Scripts/main.lua",
+        "RT-FOV-2.4/SCRIPTS/Main.lua",
+    ] {
+        let dirs = classify_archive_dirs(&[marker.to_string()], cfg);
+        assert_eq!(
+            dirs,
+            vec![("RT-FOV-2.4".to_string(), Some("ue4ss_mods".to_string()))],
+            "{marker}"
+        );
+    }
+}
+
+#[test]
+fn a_marker_at_the_archive_root_names_no_mod_folder() {
+    let cfg = engine_for_game("pd3").unwrap();
+    assert!(classify_archive_dirs(&["scripts/main.lua".to_string()], cfg).is_empty());
+}

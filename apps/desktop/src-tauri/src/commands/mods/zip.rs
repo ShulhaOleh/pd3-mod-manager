@@ -653,9 +653,13 @@ pub(crate) fn classify_archive_dirs(
                 continue;
             }
             for marker in *entry_markers {
-                let suffix = format!("/{}", marker);
+                let suffix = format!("/{}", marker).to_ascii_lowercase();
                 for name in names {
-                    if let Some(pos) = name.rfind(&suffix) {
+                    // Case-insensitive, because the scan side reads these markers off a
+                    // case-insensitive filesystem and has always accepted either spelling.
+                    // UE4SS sub-mods ship Scripts/main.lua and scripts/main.lua both, and a
+                    // mod install refused here is one the same mod copied in by hand keeps.
+                    if let Some(pos) = name.to_ascii_lowercase().rfind(&suffix) {
                         if pos > 0 {
                             let dir = name[..pos].to_string();
                             if !marker_dirs.contains(&dir) {
