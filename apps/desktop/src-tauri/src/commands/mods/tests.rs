@@ -252,11 +252,88 @@ fn loader_signature_absent_for_a_standalone_lua_submod() {
 }
 
 #[test]
-fn loader_signature_requires_top_level_ini_not_nested() {
-    // A sub-mod could plausibly bundle its own ini somewhere under its own folder,
-    // only a *top-level* UE4SS-settings.ini counts as the full loader.
+fn loader_signature_needs_the_engine_dll_not_just_an_ini() {
+    // A sub-mod could bundle a settings file of its own; only the loader ships UE4SS.dll.
     let zip = make_zip(&[("CoolMod/Config/UE4SS-settings.ini", b"not the real one")]);
     assert!(!has_ue4ss_loader_signature(zip.path()));
+}
+
+#[test]
+fn loader_signature_detects_the_ue5_wrapped_layout() {
+    // The UE5 rebuild wraps everything in a folder named after the build and puts the engine
+    // and its settings under UE4SS/, with only the proxy DLL beside them.
+    let zip = make_zip(&[
+        ("PD3-UE5-UE4SS-exp/dwmapi.dll", b"proxy"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS.dll", b"engine"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS-settings.ini", b"[General]"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/Mods/mods.txt", b"AllowModsMod : 1"),
+        (
+            "PD3-UE5-UE4SS-exp/UE4SS/Mods/Keybinds/Scripts/main.lua",
+            b"-- bundled framework sub-mod",
+        ),
+    ]);
+    assert!(has_ue4ss_loader_signature(zip.path()));
+}
+
+// ── extract_loader_package ─────────────────────────────────────────────────────
+
+#[test]
+fn loader_package_drops_the_wrapper_directory() {
+    // The proxy DLL has to land directly beside the game executable, not a level below it.
+    let zip = make_zip(&[
+        ("PD3-UE5-UE4SS-exp/dwmapi.dll", b"proxy"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS.dll", b"engine"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/Mods/mods.txt", b"AllowModsMod : 1"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert_eq!(fs::read(dest.path().join("dwmapi.dll")).unwrap(), b"proxy");
+    assert_eq!(
+        fs::read(dest.path().join("UE4SS/UE4SS.dll")).unwrap(),
+        b"engine"
+    );
+    assert!(!dest.path().join("PD3-UE5-UE4SS-exp").exists());
+}
+
+#[test]
+fn loader_package_leaves_a_flat_archive_alone() {
+    let zip = make_zip(&[
+        ("xinput1_3.dll", b"proxy"),
+        ("UE4SS.dll", b"engine"),
+        ("Mods/mods.txt", b"SomeMod : 1"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert_eq!(
+        fs::read(dest.path().join("xinput1_3.dll")).unwrap(),
+        b"proxy"
+    );
+    assert_eq!(
+        fs::read(dest.path().join("Mods/mods.txt")).unwrap(),
+        b"SomeMod : 1"
+    );
+}
+
+#[test]
+fn loader_package_keeps_several_top_level_directories() {
+    // Two roots cannot be unwrapped without deciding which one to drop, so neither is.
+    let zip = make_zip(&[("Win64/UE4SS.dll", b"a"), ("WinGDK/UE4SS.dll", b"b")]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert!(dest.path().join("Win64/UE4SS.dll").is_file());
+    assert!(dest.path().join("WinGDK/UE4SS.dll").is_file());
+}
+
+#[test]
+fn loader_package_rejects_path_traversal_through_a_wrapper() {
+    let zip = make_zip(&[
+        ("Wrapper/ok.dll", b"fine"),
+        ("Wrapper/../../evil.dll", b"escape attempt"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert!(dest.path().join("ok.dll").is_file());
+    assert!(!dest.path().parent().unwrap().join("evil.dll").exists());
 }
 
 // ── extract_archive_flat ───────────────────────────────────────────────────────

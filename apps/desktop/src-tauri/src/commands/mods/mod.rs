@@ -59,8 +59,9 @@ pub(crate) use self::reorder::{
 pub(crate) use self::state::{save_state, STATE_FILENAME};
 pub(crate) use self::zip::{
     extract_archive_flat, extract_entry, extract_entry_into_crimeboss_skeleton_at,
-    extract_staged_dir, extract_staged_entry_with_sidecars, list_unit_entries, mark_archive_files,
-    resolve_archive_download, InstallPrompt, ModContext, ResolveError,
+    extract_loader_package, extract_staged_dir, extract_staged_entry_with_sidecars,
+    list_unit_entries, mark_archive_files, resolve_archive_download, InstallPrompt, ModContext,
+    ResolveError,
 };
 
 // Re-exports needed only in test builds (suppressed in release to avoid unused-import warnings)

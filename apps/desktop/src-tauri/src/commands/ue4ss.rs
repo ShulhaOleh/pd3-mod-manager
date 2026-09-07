@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::commands::mods::extract_archive_flat;
+use crate::commands::mods::extract_loader_package;
 use crate::game_package::{LoaderBinding, Storefront};
 
 fn storefront(launcher: Option<&str>) -> Option<Storefront> {
@@ -76,7 +76,7 @@ pub(crate) fn install_loader(
         );
     };
     let dest = binaries_dir(game_path, &descriptor);
-    extract_archive_flat(zip_path, &dest)
+    extract_loader_package(zip_path, &dest)
 }
 
 #[cfg(test)]
