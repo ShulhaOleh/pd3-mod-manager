@@ -420,9 +420,7 @@
             "multipleCopies": "Найдено копий: {count} — выбранный лаунчер определяет, какую из них изменяет и запускает Modrex."
         },
         "launchOptions": {
-            "title": "Параметры запуска",
-            "description": "! Extra arguments passed to the game on launch. Most mods need none.",
-            "xboxNote": "! Launch options are not supported on Microsoft Store."
+            "title": "Параметры запуска"
         },
         "crashReporter": {
             "title": "Очистка окна сбоев",
