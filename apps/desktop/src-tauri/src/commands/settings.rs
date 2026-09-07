@@ -64,6 +64,32 @@ pub struct GameSettings {
     )]
     #[specta(type = String)]
     pub crimeboss_install_mode: String,
+    /// What installed each mod loader, keyed by loader id.
+    ///
+    /// A loader is detected by the files it leaves next to the game, and those files say
+    /// nothing about which page they came from or what version they are. Several pages
+    /// distribute the same loader, so without this a user cannot tell which one they have or
+    /// whether it is current, and every page reads as installed at once.
+    #[serde(default, deserialize_with = "null_default")]
+    #[specta(type = HashMap<String, LoaderInstall>)]
+    pub loaders: HashMap<String, LoaderInstall>,
+}
+
+/// The mod page a loader was installed from, recorded because the installed files carry no
+/// identity of their own. Absent for a loader installed outside Modrex or before this was
+/// recorded, which reads as present-but-unknown rather than absent.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LoaderInstall {
+    pub remote_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<i64>,
+    #[serde(default, deserialize_with = "null_default")]
+    #[specta(type = String)]
+    pub version: String,
+    #[serde(default, deserialize_with = "null_default")]
+    #[specta(type = String)]
+    pub installed_at: String,
 }
 
 fn default_crimeboss_mode() -> String {
@@ -79,6 +105,7 @@ impl Default for GameSettings {
             launch_options: String::new(),
             suppress_crash_reporter: false,
             crimeboss_install_mode: default_crimeboss_mode(),
+            loaders: HashMap::new(),
         }
     }
 }
@@ -530,3 +557,20 @@ pub fn dismiss_deps_warning(app: AppHandle, mod_id: i32) {
 #[cfg(test)]
 #[path = "settings_tests.rs"]
 mod tests;
+
+/// Records which mod page installed a loader for a game.
+pub fn record_loader_install(
+    app: &AppHandle,
+    game_id: &str,
+    loader_id: &str,
+    record: LoaderInstall,
+) {
+    update_settings(app, |s| {
+        s.games
+            .get_or_insert_with(HashMap::new)
+            .entry(game_id.to_string())
+            .or_default()
+            .loaders
+            .insert(loader_id.to_string(), record);
+    });
+}

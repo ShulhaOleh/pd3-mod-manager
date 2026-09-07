@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { Tooltip } from './Tooltip'
 import { useThumbnail } from '../hooks/useThumbnail'
 import { Button } from './ui/Button'
+import { isLoader } from '../hooks/installedUtils'
 import { formatCount, formatRelativeTime } from './modDetail/format'
 import { hasCatalogLink } from '../hooks/installedUtils'
 import NexusIcon from '../../../../assets/icons/nexusmods.svg?react'
@@ -197,21 +198,25 @@ export function ModCard({
                                 </button>
                             </>
                         )}
-                        <Toggle
-                            checked={installed.enabled}
-                            onChange={(v) => (v ? onEnable() : onDisable())}
-                            disabled={!canAct || !!installed.missing}
-                        />
-                        <Tooltip content={t('common.remove')}>
-                            <Button
-                                variant="danger"
-                                size="icon-md"
-                                disabled={!canAct}
-                                onClick={onUninstall}
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                        </Tooltip>
+                        {!isLoader(installed) && (
+                            <>
+                                <Toggle
+                                    checked={installed.enabled}
+                                    onChange={(v) => (v ? onEnable() : onDisable())}
+                                    disabled={!canAct || !!installed.missing}
+                                />
+                                <Tooltip content={t('common.remove')}>
+                                    <Button
+                                        variant="danger"
+                                        size="icon-md"
+                                        disabled={!canAct}
+                                        onClick={onUninstall}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </Tooltip>
+                            </>
+                        )}
                     </div>
                 )}
             </div>

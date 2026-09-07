@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './ui/Button'
+import { isLoader } from '../hooks/installedUtils'
 import { Trash2, RotateCcw, Image as ImageIcon } from 'lucide-react'
 import { Toggle } from './Toggle'
 import type { InstalledMod, ModSummary } from '../../../shared/types'
@@ -135,22 +136,26 @@ export function ModListRow({
                             </button>
                         </>
                     )}
-                    <Toggle
-                        checked={installed.enabled}
-                        onChange={(v) => (v ? onEnable() : onDisable())}
-                        disabled={!canAct || !!installed.missing}
-                    />
-                    <Tooltip content={t('common.remove')}>
-                        <Button
-                            variant="danger"
-                            size="icon-md"
-                            disabled={!canAct}
-                            onClick={onUninstall}
-                            className="p-2"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </Button>
-                    </Tooltip>
+                    {!isLoader(installed) && (
+                        <>
+                            <Toggle
+                                checked={installed.enabled}
+                                onChange={(v) => (v ? onEnable() : onDisable())}
+                                disabled={!canAct || !!installed.missing}
+                            />
+                            <Tooltip content={t('common.remove')}>
+                                <Button
+                                    variant="danger"
+                                    size="icon-md"
+                                    disabled={!canAct}
+                                    onClick={onUninstall}
+                                    className="p-2"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </Tooltip>
+                        </>
+                    )}
                     {optionsButton}
                 </div>
             </div>

@@ -90,7 +90,7 @@ pub(crate) use self::zip::{
 use crate::commands::api::{api_get, http_client, user_agent};
 use crate::commands::download::download_file;
 use crate::commands::mod_index;
-use crate::commands::settings::{game_settings, read_settings};
+use crate::commands::settings::{self, game_settings, read_settings};
 use crate::commands::sources;
 use chrono::Utc;
 use serde::Serialize;
@@ -259,8 +259,10 @@ pub async fn get_installed(app: AppHandle, game_id: String) -> Result<InstalledR
         if any_upgraded || discovered_hosts || cb_resynced || identified {
             writeback.save(&state_path, &state, "refreshed identities");
         }
+        let mut mods = state.mods;
+        push_installed_loaders(cfg, &game_path, &settings, &mut mods);
         return Ok(InstalledResponse {
-            mods: state.mods,
+            mods,
             folders: state.folders,
             mods_hidden: true,
             state_unreadable: writeback.blocked(),
@@ -301,6 +303,8 @@ pub async fn get_installed(app: AppHandle, game_id: String) -> Result<InstalledR
                 "refreshed identities",
             );
         }
+        let mut mods = mods;
+        push_installed_loaders(cfg, &game_path, &settings, &mut mods);
         return Ok(InstalledResponse {
             mods,
             folders: state.folders,
@@ -341,6 +345,8 @@ pub async fn get_installed(app: AppHandle, game_id: String) -> Result<InstalledR
         },
         "the scanned state",
     );
+    let mut mods = mods;
+    push_installed_loaders(cfg, &game_path, &settings, &mut mods);
     Ok(InstalledResponse {
         mods,
         folders,
@@ -419,9 +425,20 @@ pub async fn install_mod(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(&app, cfg, &game_path, zip_path)
-                .await
-                .map(|()| InstallOutcome::Installed);
+            return install_ue4ss_loader_from(
+                &app,
+                cfg,
+                &game_path,
+                zip_path,
+                Some(settings::LoaderInstall {
+                    remote_id: remote_id.to_string(),
+                    file_id: Some(file_id),
+                    version: mod_version.clone(),
+                    installed_at: Utc::now().to_rfc3339(),
+                }),
+            )
+            .await
+            .map(|()| InstallOutcome::Installed);
         }
         Err(ResolveError::Prompt(prompt)) => {
             return Ok((*prompt)
@@ -586,9 +603,20 @@ pub async fn install_file(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(&app, cfg, &game_path, zip_path)
-                .await
-                .map(|()| InstallOutcome::Installed);
+            return install_ue4ss_loader_from(
+                &app,
+                cfg,
+                &game_path,
+                zip_path,
+                Some(settings::LoaderInstall {
+                    remote_id: mod_id.to_string(),
+                    file_id: Some(file_id),
+                    version: mod_version.clone(),
+                    installed_at: Utc::now().to_rfc3339(),
+                }),
+            )
+            .await
+            .map(|()| InstallOutcome::Installed);
         }
         Err(ResolveError::Prompt(prompt)) => {
             return Ok((*prompt)
@@ -744,7 +772,19 @@ pub(crate) async fn install_nexus_download(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(app, cfg, game_path, zip_path).await;
+            return install_ue4ss_loader_from(
+                app,
+                cfg,
+                game_path,
+                zip_path,
+                Some(settings::LoaderInstall {
+                    remote_id: nexus_mod_id.to_string(),
+                    file_id: Some(i64::from(nexus_file_id)),
+                    version: mod_version.clone(),
+                    installed_at: Utc::now().to_rfc3339(),
+                }),
+            )
+            .await;
         }
         Err(ResolveError::Prompt(prompt)) => {
             cleanup::run(&cleanup::CleanupPlan::RemoveOwnedFile(dl_path.clone())).await;
@@ -819,11 +859,72 @@ pub(crate) async fn install_nexus_download(
 }
 
 /// Removes the download once the loader installer has taken it.
+/// Lists a game's installed loaders alongside its mods.
+///
+/// A loader is not a mod: it is presence-detected from the files it leaves next to the game
+/// and is never recorded in state.json, so it cannot be enabled, reordered or removed here.
+/// It is listed anyway because the question it answers is one only this list can answer, and
+/// only for the page it was actually installed from: which loader is installed, and is it the
+/// current version. A loader installed outside Modrex has no recorded page, and reads as
+/// present with an unknown version rather than as absent.
+fn push_installed_loaders(
+    cfg: &ModEngineConfig,
+    game_path: &str,
+    settings: &crate::commands::settings::Settings,
+    mods: &mut Vec<InstalledMod>,
+) {
+    let launcher = game_settings(settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
+    let recorded = game_settings(settings, cfg.game_id).map(|gs| &gs.loaders);
+    for (game_id, spec, _) in crate::commands::loaders::scoped_bindings() {
+        if game_id != cfg.game_id {
+            continue;
+        }
+        if !crate::commands::loaders::is_loader_installed(
+            spec,
+            cfg.game_id,
+            game_path,
+            launcher.as_deref(),
+        ) {
+            continue;
+        }
+        let record = recorded.and_then(|r| r.get(spec.id));
+        let entry = InstalledMod {
+            uid: format!("loader:{}", spec.id),
+            name: spec.id.to_uppercase(),
+            version: record.map(|r| r.version.clone()).unwrap_or_default(),
+            filename: spec.id.to_string(),
+            enabled: true,
+            location: Some(format!("loader:{}", spec.id)),
+            installed_at: record.map(|r| r.installed_at.clone()).unwrap_or_default(),
+            file_id: record.and_then(|r| r.file_id),
+            ..match record {
+                Some(r) => InstalledMod::from_catalog(
+                    "modworkshop",
+                    r.remote_id.clone(),
+                    IdentityEvidence::InstallProvenance,
+                ),
+                None => InstalledMod {
+                    id: hash_filename(spec.id),
+                    update_status: UpdateStatus::Unknown,
+                    ..InstalledMod::default()
+                },
+            }
+        };
+        mods.push(entry);
+    }
+}
+
+/// Installs the UE4SS package and records which page it came from.
+///
+/// The installed files carry no identity: several pages distribute this loader, and one
+/// detected proxy DLL says nothing about which of them wrote it or what version it is.
+/// Provenance is absent only for a drop, which has no page behind it.
 async fn install_ue4ss_loader_from(
     app: &AppHandle,
     cfg: &ModEngineConfig,
     game_path: &str,
     zip_path: PathBuf,
+    provenance: Option<settings::LoaderInstall>,
 ) -> Result<(), String> {
     let settings = read_settings(app);
     let launcher = game_settings(&settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
@@ -834,6 +935,11 @@ async fn install_ue4ss_loader_from(
         &zip_path,
     );
     cleanup::run(&cleanup::CleanupPlan::RemoveOwnedFile(zip_path)).await;
+    if result.is_ok() {
+        if let Some(record) = provenance {
+            settings::record_loader_install(app, cfg.game_id, "ue4ss", record);
+        }
+    }
     result
 }
 
@@ -969,7 +1075,7 @@ pub async fn install_dropped_file(
         original_archive: zip_orig,
     } = match resolve_archive_download(temp.clone(), cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(&app, cfg, &game_path, zip_path)
+            return install_ue4ss_loader_from(&app, cfg, &game_path, zip_path, None)
                 .await
                 .map(|()| InstallOutcome::Installed);
         }

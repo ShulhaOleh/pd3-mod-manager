@@ -298,6 +298,15 @@ export type GameSettings_Deserialize = {
 	launchOptions?: string,
 	suppressCrashReporter?: boolean,
 	crimebossInstallMode?: string,
+	/**
+	 *  What installed each mod loader, keyed by loader id.
+	 * 
+	 *  A loader is detected by the files it leaves next to the game, and those files say
+	 *  nothing about which page they came from or what version they are. Several pages
+	 *  distribute the same loader, so without this a user cannot tell which one they have or
+	 *  whether it is current, and every page reads as installed at once.
+	 */
+	loaders?: { [key in string]: LoaderInstall_Deserialize },
 };
 
 export type GameSettings_Serialize = {
@@ -307,6 +316,15 @@ export type GameSettings_Serialize = {
 	launchOptions: string,
 	suppressCrashReporter: boolean,
 	crimebossInstallMode: string,
+	/**
+	 *  What installed each mod loader, keyed by loader id.
+	 * 
+	 *  A loader is detected by the files it leaves next to the game, and those files say
+	 *  nothing about which page they came from or what version they are. Several pages
+	 *  distribute the same loader, so without this a user cannot tell which one they have or
+	 *  whether it is current, and every page reads as installed at once.
+	 */
+	loaders: { [key in string]: LoaderInstall_Serialize },
 };
 
 export type HostPackPayload = HostPackPayload_Serialize | HostPackPayload_Deserialize;
@@ -582,6 +600,37 @@ export type LoaderInfo = {
 	 *  flow rather than calling install_loader.
 	 */
 	viaModFlow: boolean,
+};
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall = LoaderInstall_Serialize | LoaderInstall_Deserialize;
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall_Deserialize = {
+	remoteId: string,
+	fileId?: number | null,
+	version?: string,
+	installedAt?: string,
+};
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall_Serialize = {
+	remoteId: string,
+	fileId?: number | null,
+	version: string,
+	installedAt: string,
 };
 
 /**
