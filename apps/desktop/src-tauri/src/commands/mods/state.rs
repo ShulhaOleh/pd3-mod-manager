@@ -1,4 +1,4 @@
-use super::engine::{backup_dir, ModEngineConfig, ModUnit};
+use super::engine::{backup_dir, ModEngineConfig, ModUnit, ScanTarget};
 use super::naming::log_name;
 use super::naming::{apply_priority_prefix, make_uid, strip_priority_prefix};
 use super::paths::{
@@ -286,7 +286,37 @@ pub fn load_for_scan(
 /// the destination wins: it is the one the loader is loading. mods.txt is deliberately not
 /// moved, because the loader ships its own with AllowModsMod enabled and an older copy written
 /// over it would turn the pak-mod bypass off.
-fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig) {
+/// Whether this record is the one tracking a mod of that name in that target.
+fn claims(m: &InstalledMod, target: &ScanTarget, name: &str) -> bool {
+    m.filename == name && m.location.as_deref() == Some(target.tag)
+}
+
+/// Whether the folder now standing at the new path holds the files the record describes.
+///
+/// Answered by the hash the install recorded against the marker the target scans for, which is
+/// the same file identification hashes. A record with no stored hash, or a folder whose marker
+/// cannot be read, answers false: the point is to keep a record off files that are not its own,
+/// and an unanswerable question is not a yes.
+fn record_owns(mods: &[InstalledMod], target: &ScanTarget, name: &str, destination: &Path) -> bool {
+    let Some(recorded) = mods
+        .iter()
+        .find(|m| claims(m, target, name))
+        .and_then(|m| m.sha256.as_deref())
+    else {
+        return false;
+    };
+    let ModUnit::Directory { scan_markers, .. } = &target.unit else {
+        return false;
+    };
+    scan_markers
+        .iter()
+        .map(|marker| destination.join(marker))
+        .find(|path| path.is_file())
+        .and_then(|path| super::identify::hash_file(&path).ok().flatten())
+        .is_some_and(|found| found == recorded)
+}
+
+fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig, mods: &mut Vec<InstalledMod>) {
     let Some(target) = cfg.targets.iter().find(|t| t.tag == "ue4ss_mods") else {
         return;
     };
@@ -316,14 +346,20 @@ fn migrate_ue4ss_mods_folder(game_path: &str, cfg: &ModEngineConfig) {
             continue;
         }
         let to = new_dir.join(&name);
-        // Two folders of one name, and nothing here can say which the tracked record meant.
-        // Moving either way would give that record the other mod's files, so both stay put and
-        // the collision is reported instead.
+        // Two folders of one name. The record for that name is about to resolve to the new
+        // path whatever happens here, so if the folder standing there is not the one the
+        // record describes, leaving the record in place would point it at another mod, and
+        // uninstalling it would delete that mod's files. Nothing can merge the two, so the
+        // record gives up its claim and both folders are left for the scan to pick up as the
+        // separate mods they are.
         if to.exists() {
-            log::warn!(
-                "migrate ue4ss mods: '{}' exists in both the old and new folders, leaving both alone",
-                name.to_string_lossy()
-            );
+            let name = name.to_string_lossy().into_owned();
+            if !record_owns(mods, target, &name, &to) {
+                log::warn!(
+                    "migrate ue4ss mods: '{name}' exists in both folders and the tracked one is not the copy at the new path, so it is no longer tracked"
+                );
+                mods.retain(|m| !(claims(m, target, &name)));
+            }
             continue;
         }
         if let Err(e) = fs::create_dir_all(&new_dir) {
@@ -486,7 +522,8 @@ pub fn reconcile_state(
         }
     }
 
-    migrate_ue4ss_mods_folder(game_path, cfg);
+    let mut state = state;
+    migrate_ue4ss_mods_folder(game_path, cfg, &mut state.mods);
 
     let checks: Vec<bool> = state
         .mods

@@ -6468,3 +6468,165 @@ fn a_missing_companion_is_not_an_error() {
         None
     );
 }
+
+#[test]
+fn a_colliding_name_the_record_does_not_own_gives_up_its_claim() {
+    // Both folders hold CoolMod, and the one at the new path is a different mod. Leaving the
+    // record in place would point it at those files, and uninstalling it would delete them.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- the tracked mod");
+    write_submod(&current, "CoolMod", b"-- a different mod");
+    let tracked_hash = compute_sha256_blocking(&legacy.join("CoolMod/Scripts/main.lua"));
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: vec![],
+            mods: vec![InstalledMod {
+                uid: "1".into(),
+                filename: "CoolMod".into(),
+                enabled: true,
+                location: Some("ue4ss_mods".into()),
+                sha256: Some(tracked_hash),
+                ..InstalledMod::default()
+            }],
+        },
+    )
+    .unwrap();
+
+    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert!(
+        state.mods.is_empty(),
+        "the record must not keep claiming another mod's folder"
+    );
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- a different mod",
+        "the other mod's files are untouched"
+    );
+    assert!(
+        legacy.join("CoolMod").is_dir(),
+        "and so are the record's own"
+    );
+}
+
+#[test]
+fn a_colliding_name_the_record_does_own_stays_tracked() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- a stale duplicate");
+    write_submod(&current, "CoolMod", b"-- the tracked mod");
+    let tracked_hash = compute_sha256_blocking(&current.join("CoolMod/Scripts/main.lua"));
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: vec![],
+            mods: vec![InstalledMod {
+                uid: "1".into(),
+                filename: "CoolMod".into(),
+                enabled: true,
+                location: Some("ue4ss_mods".into()),
+                sha256: Some(tracked_hash),
+                ..InstalledMod::default()
+            }],
+        },
+    )
+    .unwrap();
+
+    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(state.mods.len(), 1, "the record owns what stands there");
+    assert_eq!(state.mods[0].missing, None);
+}
+
+#[test]
+fn a_colliding_name_with_no_recorded_hash_gives_up_its_claim() {
+    // Nothing can say whether the folder at the new path is this record's, and an
+    // unanswerable question is not a yes.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- one");
+    write_submod(&current, "CoolMod", b"-- two");
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: vec![],
+            mods: vec![InstalledMod {
+                uid: "1".into(),
+                filename: "CoolMod".into(),
+                enabled: true,
+                location: Some("ue4ss_mods".into()),
+                ..InstalledMod::default()
+            }],
+        },
+    )
+    .unwrap();
+
+    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+    assert!(state.mods.is_empty());
+}
+
+fn compute_sha256_blocking(path: &Path) -> String {
+    super::identify::hash_file(path).unwrap().unwrap()
+}
+
+#[tokio::test]
+async fn a_refused_twin_survives_a_scan_persist_rescan_round_trip() {
+    // The whole path, not just the uid allocator: a record whose files are gone, two
+    // same-named twins in different folders, saved and read back. Both have to be listed on
+    // both passes, and uninstalling the tracked record must not reach either of them.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+    let mods_dir = own_mods_dir(tmp.path());
+    for folder in ["Alpha", "Beta"] {
+        fs::create_dir_all(mods_dir.join(folder)).unwrap();
+        fs::write(mods_dir.join(folder).join("Twin_P.pak"), OWN_STUB).unwrap();
+        fs::write(mods_dir.join(folder).join("Twin_P.ucas"), folder.as_bytes()).unwrap();
+    }
+    let sha = own_sha(&mods_dir.join("Alpha/Twin_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("gone", "Deleted_P.pak", &sha)],
+    };
+    let first = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods: first.clone(),
+        },
+    )
+    .unwrap();
+
+    let listed: Vec<&str> = first.iter().map(|m| m.filename.as_str()).collect();
+    assert_eq!(listed.iter().filter(|f| **f == "Twin_P.pak").count(), 2);
+    assert_eq!(first.len(), 3, "the record plus both twins");
+
+    // Rescan from the persisted state: everything is tracked now, so nothing is rediscovered
+    // and no entry has been collapsed away.
+    let mut reloaded = read_state(&sp).unwrap();
+    let second = own_scan(&game, cfg, &mut reloaded).await;
+    assert_eq!(second.len(), 3, "the round trip keeps every entry");
+
+    uninstall_mod_op(&game, &sp, "gone", cfg).unwrap();
+    for folder in ["Alpha", "Beta"] {
+        assert!(
+            mods_dir.join(folder).join("Twin_P.pak").is_file(),
+            "{folder} must be untouched"
+        );
+        assert!(mods_dir.join(folder).join("Twin_P.ucas").is_file());
+    }
+}
