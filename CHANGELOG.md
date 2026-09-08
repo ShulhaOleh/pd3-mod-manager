@@ -33,6 +33,7 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Installing UE4SS now replaces an older one instead of leaving both hooked into the game, keeping your Lua mods and the choices you made in the loader's own list. Modrex names the release you have where it can recognize it, and says so plainly where it cannot.
 - Installing a UE4SS release over one you already have now asks first, listing what it removes and what it keeps.
 - Fixed a UE4SS release you do not have reading as already installed, and offering no way to install it, whenever a different release of it was.
+- Fixed a hand-installed UE4SS being left hooked into the game after it was replaced, when Modrex could not recognize which release it was.
 - Fixed your own Lua mods being left in the old release's folder after a UE4SS update that moves where the loader reads them.
 
 ## 0.14.0

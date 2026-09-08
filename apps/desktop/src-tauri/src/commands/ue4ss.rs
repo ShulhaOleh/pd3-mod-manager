@@ -186,19 +186,15 @@ pub(crate) fn is_installed(game_id: &str, game_path: &str, launcher: Option<&str
 
 /// Everything the installed release owns, as paths under the Binaries directory.
 ///
-/// Only files a release is known to place are listed. A proxy DLL is listed only when its
-/// bytes identify it, so an overlay or injector sitting under the same name is never moved.
-fn owned_paths(dir: &Path) -> Vec<PathBuf> {
+/// Only files a release is known to place are listed, so an overlay or injector sharing the
+/// directory is never moved.
+fn owned_paths(dir: &Path, proxy_dlls: &[String]) -> Vec<PathBuf> {
     // Both roots are checked because the two shipped layouts disagree on where everything but
     // the proxy DLL lives: the UE4 package puts the engine, its ini files and Mods at the
     // Binaries root, and the UE5 package puts all three inside a UE4SS folder of its own.
-    let mut owned = Vec::new();
-    for release in releases() {
-        if identify_release(dir, release.proxy).is_some() {
-            owned.push(dir.join(release.proxy));
-        }
-    }
-    for root in [dir.to_path_buf(), dir.join("UE4SS")] {
+    let roots = [dir.to_path_buf(), dir.join("UE4SS")];
+    let mut owned = claimed_proxies(dir, proxy_dlls, &roots);
+    for root in &roots {
         for name in LOADER_ROOT_FILES {
             let path = root.join(name);
             if path.is_file() {
@@ -224,6 +220,33 @@ fn owned_paths(dir: &Path) -> Vec<PathBuf> {
         }
     }
     owned
+}
+
+/// The proxy DLLs in this directory that UE4SS put there.
+///
+/// Bytes settle it whenever they can. When they cannot, one unrecognised proxy standing in a
+/// directory that also holds a UE4SS engine is UE4SS's: a proxy is the only reason UE4SS puts
+/// a DLL under one of these names, and leaving it behind is what leaves the old build hooked
+/// into the game after its engine is gone. Two unrecognised proxies is a different situation,
+/// because ReShade and Special K use these names too, and nothing here can say which is which,
+/// so neither is claimed and presence reports both as unrecognised instead.
+fn claimed_proxies(dir: &Path, proxy_dlls: &[String], roots: &[PathBuf]) -> Vec<PathBuf> {
+    let present: Vec<&String> = proxy_dlls
+        .iter()
+        .filter(|name| dir.join(name).is_file())
+        .collect();
+    let identified: Vec<&&String> = present
+        .iter()
+        .filter(|name| identify_release(dir, name).is_some())
+        .collect();
+    if !identified.is_empty() {
+        return identified.iter().map(|name| dir.join(**name)).collect();
+    }
+    let engine_here = roots.iter().any(|root| root.join("UE4SS.dll").is_file());
+    match present.as_slice() {
+        [only] if engine_here => vec![dir.join(only)],
+        _ => Vec::new(),
+    }
 }
 
 /// Every file under root, as paths relative to it.
@@ -293,13 +316,19 @@ pub struct ReplacementPlan {
     pub preserved: Vec<String>,
 }
 
-fn destination(game_id: &str, game_path: &str, launcher: Option<&str>) -> Result<PathBuf, String> {
+/// Where the loader lives for this game and storefront, and the names its proxy can appear
+/// under. Ownership needs both, so they are resolved together rather than re-derived.
+fn resolve_build(
+    game_id: &str,
+    game_path: &str,
+    launcher: Option<&str>,
+) -> Result<(PathBuf, &'static [String]), String> {
     let Some(descriptor) = descriptor_for(game_id, launcher) else {
         return Err(
             "UE4SS isn't supported yet for this game and launcher combination.".to_string(),
         );
     };
-    Ok(binaries_dir(game_path, &descriptor))
+    Ok((binaries_dir(game_path, &descriptor), descriptor.proxy_dlls))
 }
 
 /// Reports what a replacement would change, without changing anything. Reads the same
@@ -309,14 +338,14 @@ pub(crate) fn plan_replacement(
     game_path: &str,
     launcher: Option<&str>,
 ) -> Result<ReplacementPlan, String> {
-    let dest = destination(game_id, game_path, launcher)?;
+    let (dest, proxies) = resolve_build(game_id, game_path, launcher)?;
     let mut preserved: Vec<String> = user_mod_dirs(&dest)
         .iter()
         .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .collect();
     preserved.sort();
     Ok(ReplacementPlan {
-        replaced: relative_names(&owned_paths(&dest), &dest),
+        replaced: relative_names(&owned_paths(&dest, proxies), &dest),
         preserved,
     })
 }
@@ -572,10 +601,11 @@ pub(crate) fn install_loader(
     launcher: Option<&str>,
     zip_path: &Path,
 ) -> Result<(), LoaderError> {
-    let dest = destination(game_id, game_path, launcher).map_err(LoaderError::Unchanged)?;
+    let (dest, proxies) =
+        resolve_build(game_id, game_path, launcher).map_err(LoaderError::Unchanged)?;
     let staging = Staging::extract(zip_path).map_err(LoaderError::Unchanged)?;
 
-    let owned = owned_paths(&dest);
+    let owned = owned_paths(&dest, proxies);
     let conflicts = staging.conflicts(&dest, &owned);
     if !conflicts.is_empty() {
         return Err(LoaderError::Unchanged(format!(

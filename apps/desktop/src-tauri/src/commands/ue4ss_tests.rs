@@ -254,7 +254,10 @@ fn an_unknown_legacy_install_reads_as_present_with_no_version() {
 }
 
 #[test]
-fn an_unknown_install_can_still_be_replaced() {
+fn an_unknown_build_is_removed_rather_than_left_hooked_into_the_game() {
+    // A hand-installed build matches no release, so its proxy cannot be claimed on its bytes.
+    // It still has to go: its engine is removed by name, and a proxy left behind loads an
+    // engine that is no longer there, next to the new loader's own proxy.
     let tmp = TempDir::new().unwrap();
     install_fixture(&tmp, Ue4ssFixture::Unknown);
     let dir = ue4ss_dir(&tmp);
@@ -267,10 +270,61 @@ fn an_unknown_install_can_still_be_replaced() {
         "the new proxy is in place"
     );
     assert!(dir.join("UE4SS/UE4SS.dll").is_file());
-    // Its dxgi.dll matched no release, so nothing here owns it and it is left where it is.
     assert!(
-        dir.join("dxgi.dll").is_file(),
-        "an unattributable DLL is never removed on a guess"
+        !dir.join("dxgi.dll").exists(),
+        "the old proxy went with the engine it was loading"
+    );
+}
+
+#[test]
+fn a_proxy_beside_a_recognised_one_belongs_to_something_else_and_stays() {
+    // UE4SS and ReShade in one folder. The bytes name which proxy is UE4SS's, so nothing has
+    // to be inferred about the other, and inferring anything would delete ReShade.
+    let tmp = TempDir::new().unwrap();
+    let dir = ue4ss_dir(&tmp);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dxgi.dll"), proxy_bytes(44048)).unwrap();
+    fs::write(dir.join("dwmapi.dll"), b"ReShade, not UE4SS").unwrap();
+    fs::write(dir.join("UE4SS.dll"), b"old engine").unwrap();
+    let package = ue5_package(&[]);
+
+    let err = install_loader("pd3", &path_str(&tmp), Some("steam"), package.path())
+        .unwrap_err()
+        .message();
+
+    assert!(err.contains("dwmapi.dll"), "the file is named: {err}");
+    assert_eq!(
+        fs::read(dir.join("dwmapi.dll")).unwrap(),
+        b"ReShade, not UE4SS",
+        "and it is still theirs"
+    );
+}
+
+#[test]
+fn two_proxies_that_nothing_recognises_are_both_left_alone() {
+    // An unrecognised build and an unrecognised overlay look identical from here. Removing
+    // the wrong one takes out something Modrex never installed, so neither is claimed and the
+    // package refuses instead.
+    let tmp = TempDir::new().unwrap();
+    let dir = ue4ss_dir(&tmp);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dxgi.dll"), b"some build nobody recorded").unwrap();
+    fs::write(dir.join("dwmapi.dll"), b"ReShade, not UE4SS").unwrap();
+    fs::write(dir.join("UE4SS.dll"), b"old engine").unwrap();
+    let package = ue5_package(&[]);
+
+    let err = install_loader("pd3", &path_str(&tmp), Some("steam"), package.path())
+        .unwrap_err()
+        .message();
+
+    assert!(err.contains("not Modrex's to replace"), "unexpected: {err}");
+    assert_eq!(
+        fs::read(dir.join("dxgi.dll")).unwrap(),
+        b"some build nobody recorded"
+    );
+    assert_eq!(
+        fs::read(dir.join("dwmapi.dll")).unwrap(),
+        b"ReShade, not UE4SS"
     );
 }
 
