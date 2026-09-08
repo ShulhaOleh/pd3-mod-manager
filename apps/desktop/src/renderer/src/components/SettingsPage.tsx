@@ -42,7 +42,7 @@ const APP_VERSION = import.meta.env.DEV ? 'v-dev' : `v${import.meta.env.VITE_APP
 
 const GITHUB_URL = 'https://github.com/modrexio/modrex'
 const SPONSOR_URL = 'https://github.com/sponsors/modrexio'
-const DISCORD_URL = 'https://discord.gg/tenzpx8JRM'
+const DISCORD_URL = 'https://discord.gg/QM2rDgy43Y'
 const X_URL = 'https://x.com/modrexio'
 const BLUESKY_URL = 'https://bsky.app/profile/modrex.net'
 const WEBSITE_URL = 'https://modrex.net/'
