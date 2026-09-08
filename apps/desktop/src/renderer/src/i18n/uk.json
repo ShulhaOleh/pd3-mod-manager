@@ -4,8 +4,8 @@
         "install": "Встановити",
         "nonPakWarning": "Непідтримуваний формат",
         "openLink": "Відкрити посилання",
-        "installing": "Встановлення…",
-        "downloading": "Завантаження…",
+        "installing": "Встановлення...",
+        "downloading": "Завантаження...",
         "installed": "Встановлено",
         "remove": "Видалити",
         "fileMissing": "Файл відсутній",
@@ -14,7 +14,7 @@
         "depNeedsManualInstall": "Для завантаження цієї залежності потрібно зробити вибір. Відкрийте сторінку мода, щоб встановити її.",
         "fix": "Виправити",
         "reinstall": "Перевстановити",
-        "loading": "Завантаження…",
+        "loading": "Завантаження...",
         "cancel": "Скасувати",
         "close": "Закрити",
         "dontShowAgain": "Більше не показувати",
@@ -47,7 +47,7 @@
     },
     "errorBoundary": {
         "close": "Закрити",
-        "message": "Ой… Щось пішло не так."
+        "message": "Ой... Щось пішло не так."
     },
     "topBar": {
         "title": "Modrex",
@@ -86,18 +86,18 @@
         "title": "Ігри",
         "installedOnly": "Лише встановлені",
         "searchLabel": "Пошук ігор",
-        "searchPlaceholder": "Шукати ігри…",
+        "searchPlaceholder": "Шукати ігри...",
         "noMatches": "Ігор не знайдено"
     },
     "browse": {
         "title": "Огляд модів",
         "gameNotFound": "Гру не знайдено — встановлення вимкнено",
         "goToSettings": "Налаштувати в параметрах",
-        "searchPlaceholder": "Шукати моди…",
+        "searchPlaceholder": "Шукати моди...",
         "allCategories": "Усі категорії",
         "tags": "Теги",
         "tagsCount": "Теги ({count})",
-        "tagFilterSearch": "Фільтрувати теги…",
+        "tagFilterSearch": "Фільтрувати теги...",
         "tagFilterClear": "Очистити",
         "tagFilterEmpty": "Тегів не знайдено",
         "noMods": "Модів не знайдено",
@@ -113,7 +113,7 @@
         }
     },
     "nexus": {
-        "searchPlaceholder": "Шукати моди…",
+        "searchPlaceholder": "Шукати моди...",
         "noMods": "Модів не знайдено",
         "loadFailed": "Не вдалося завантажити моди",
         "modCount": "Модів: {total}",
@@ -130,7 +130,7 @@
     "nexusSession": {
         "expired": "Термін дії вашого входу в Nexus Mods минув. Перегляд, установлення та перевірку оновлень для модів Nexus призупинено, доки ви не ввійдете знову.",
         "signIn": "Увійти знову",
-        "awaiting": "Очікування браузера…",
+        "awaiting": "Очікування браузера...",
         "failed": "Не вдалося ввійти в Nexus Mods: {error}"
     },
     "installed": {
@@ -142,8 +142,8 @@
         "modCountSingle": "{count} мод",
         "modCountFiltered": "Модів: {count} із {total}",
         "empty": "Моди ще не встановлено",
-        "identifyingNew": "Розпізнавання нових модів: {count}…",
-        "filterPlaceholder": "Шукати моди…",
+        "identifyingNew": "Розпізнавання нових модів: {count}...",
+        "filterPlaceholder": "Шукати моди...",
         "filterEmpty": "Жоден мод не відповідає запиту «{query}»",
         "reinstallFailed": "Не вдалося перевстановити: {error}",
         "actionFailed": "Не вдалося змінити «{name}»: {error}",
@@ -169,7 +169,7 @@
         },
         "fileCount": "Файлів: {count}",
         "manageFiles": {
-            "searchPlaceholder": "Шукати файли…",
+            "searchPlaceholder": "Шукати файли...",
             "enableAll": "Увімкнути всі",
             "disableAll": "Вимкнути всі",
             "noMatches": "Жоден файл не відповідає запиту «{query}»",
@@ -180,7 +180,7 @@
         "updatesModal": {
             "title": "Доступні оновлення ({count})",
             "update": "Оновити",
-            "updating": "Оновлення…",
+            "updating": "Оновлення...",
             "updatingProgress": "Оновлення: {done} / {total}",
             "updateSelected": "Оновити вибрані ({count})",
             "error": "Не вдалося оновити. Перевірте з’єднання та повторіть спробу."
@@ -188,10 +188,10 @@
         "pakViewer": {
             "title": "Вміст pak-файлу",
             "open": "Переглянути вміст pak-файлу",
-            "searchPlaceholder": "Шукати ресурси…",
+            "searchPlaceholder": "Шукати ресурси...",
             "assetCount": "Ресурсів: {count}",
             "matchCount": "Ресурсів: {count} із {total}",
-            "loading": "Читання pak-файлу…",
+            "loading": "Читання pak-файлу...",
             "empty": "Ресурсів не знайдено",
             "noMatches": "Жоден ресурс не відповідає запиту «{query}»",
             "error": "Не вдалося прочитати pak-файл.",
@@ -203,7 +203,7 @@
             "identify": "Розпізнати"
         },
         "identifyNexus": {
-            "identifying": "Розпізнавання…",
+            "identifying": "Розпізнавання...",
             "identified": "Розпізнано як «{name}»",
             "notFound": "Збігів на Nexus не знайдено",
             "ambiguous": "На Nexus знайдено кілька можливих збігів",
@@ -221,7 +221,7 @@
             "confirmTitleToModkit": "Перемістити до Mods/?",
             "confirmBodyToModkit": "Переміщує «{name}» до Mods/, де його вміст може об’єднуватися з вмістом інших модів.",
             "confirm": "Перемістити",
-            "moving": "Переміщення…",
+            "moving": "Переміщення...",
             "error": "Не вдалося перемістити: {error}"
         },
         "health": {
@@ -306,7 +306,7 @@
             "external": "Завантажити",
             "count": "Завантажень: {count}",
             "viaNexus": "Завантажити через Nexus",
-            "awaitingNexus": "Очікування браузера…",
+            "awaitingNexus": "Очікування браузера...",
             "categoryMain": "Основні файли",
             "categoryUpdate": "Оновлення",
             "categoryOptional": "Необов’язкові файли",
@@ -349,7 +349,7 @@
         "requiresHost": "Це доповнення встановлюється в {hostName}, який ще не встановлено. Спочатку встановіть його, а потім це доповнення.",
         "installHost": "Встановити {hostName}",
         "install": "Встановити ({count})",
-        "installing": "Встановлення…"
+        "installing": "Встановлення..."
     },
     "unrecognized": {
         "title": "Не вдалося визначити місце мода",
@@ -360,25 +360,25 @@
         "title": "Установити як папку мода?",
         "body": "Цей архів не має власної папки-обгортки, тому Modrex не може автоматично визначити з нього назву мода. Установити весь його вміст як «{name}» у CrimeBoss/Mods?",
         "install": "Встановити",
-        "installing": "Встановлення…"
+        "installing": "Встановлення..."
     },
     "ue4ssReplace": {
-        "title": "! Replace the installed UE4SS?",
-        "body": "! {name} replaces the UE4SS that is already installed. The installed release is removed first: the two put their engine and settings in different places, so leaving it in place would load both.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "modsListNote": "! Your own mods keep their entries in the loader's mod list.",
-        "replace": "! Replace",
-        "replacing": "! Replacing..."
+        "title": "Замінити встановлений UE4SS?",
+        "body": "«{name}» замінює вже встановлений UE4SS. Спочатку буде видалено встановлену версію: обидві зберігають рушій і налаштування в різних місцях, тому якщо залишити стару, завантажаться обидві.",
+        "removed": "Видалено",
+        "kept": "Залишено",
+        "nothingOfYours": "У папці Mods завантажувача немає ваших власних модів.",
+        "modsListNote": "Ваші моди збережуть свої записи в списку модів завантажувача.",
+        "replace": "Замінити",
+        "replacing": "Заміна..."
     },
     "ue4ssRemove": {
-        "title": "! Remove UE4SS?",
-        "body": "! UE4SS is what loads Lua mods, so removing it stops them running until you install it again. Only the files it installed are deleted.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "removing": "! Removing..."
+        "title": "Видалити UE4SS?",
+        "body": "UE4SS завантажує Lua-моди, тому його видалення зупинить їх роботу до повторного встановлення. Буде видалено лише файли, які він сам встановив.",
+        "removed": "Видалено",
+        "kept": "Залишено",
+        "nothingOfYours": "У папці Mods завантажувача немає ваших власних модів.",
+        "removing": "Видалення..."
     },
     "depsWarning": {
         "title": "Відсутні обов’язкові залежності",
@@ -394,7 +394,7 @@
         "body": "Mods/ об’єднує вміст з іншими модами. ~mods — це старіший формат без об’єднання.",
         "auto": "Mods/ (ModKit)",
         "legacy": "~mods (застарілий pak)",
-        "installing": "Встановлення…",
+        "installing": "Встановлення...",
         "error": "Не вдалося встановити: {error}"
     },
     "settings": {
@@ -417,11 +417,11 @@
             "title": "Шлях до гри",
             "description": "Шлях до встановленої гри {game}. Якщо його не вказано вручну, він визначається автоматично за встановленими програмами запуску.",
             "notFound": "Не знайдено",
-            "detecting": "Виявлення…",
+            "detecting": "Виявлення...",
             "reset": "Скинути",
             "browse": "Огляд",
             "pickTitle": "Виберіть папку встановлення {game}",
-            "picking": "Вибір…",
+            "picking": "Вибір...",
             "autoDetected": "Виявлено автоматично",
             "notDetected": "Не вдалося знайти встановлену гру {game} — укажіть шлях вручну.",
             "invalid": "Вибрана папка не є дійсною папкою встановлення {game}."
@@ -429,7 +429,7 @@
         "launcher": {
             "title": "Програма запуску",
             "description": "Спосіб запуску {game}. Визначається автоматично за встановленими магазинами.",
-            "detecting": "Виявлення…",
+            "detecting": "Виявлення...",
             "steam": "Steam",
             "epic": "Epic Games",
             "xbox": "Xbox",
@@ -439,8 +439,8 @@
         },
         "launchOptions": {
             "title": "Параметри запуску",
-            "description": "! {flag} is needed for most of this game's mods to load correctly.",
-            "xboxNote": "! Launch options are not supported on Microsoft Store."
+            "description": "{flag} потрібен для коректного завантаження більшості модів цієї гри.",
+            "xboxNote": "Параметри запуску не підтримуються в Microsoft Store."
         },
         "crashReporter": {
             "title": "Очищення засобу звітування про збої",
@@ -460,7 +460,7 @@
         "updates": {
             "title": "Оновлення",
             "check": "Перевірити оновлення",
-            "checking": "Перевірка…",
+            "checking": "Перевірка...",
             "upToDate": "У вас найновіша версія"
         },
         "logs": {
@@ -498,7 +498,7 @@
             "title": "Сховище",
             "dangerZone": "Небезпечна зона",
             "dangerZoneDescription": "Ці дії видаляють локальні дані. Кеші звільняють місце на диску й автоматично відновлюються під час користування застосунком; скидання відновлює стандартні налаштування. Жодна з цих дій не видаляє встановлені моди чи файли гри.",
-            "clearing": "Очищення…",
+            "clearing": "Очищення...",
             "clearImages": "Очистити зображення",
             "clearModInfo": "Очистити дані модів",
             "clearDatabase": "Очистити базу даних",
@@ -524,7 +524,7 @@
             "resetConfirmTitle": "Скинути налаштування?",
             "resetConfirmBody": "Це очистить збережені шляхи до ігор, вибір програм запуску, уподобання та вибір аналітики, а потім поверне Modrex до стану першого запуску. Встановлені моди й файли ігор не буде змінено.",
             "resetConfirm": "Скинути налаштування",
-            "resetting": "Скидання…"
+            "resetting": "Скидання..."
         },
         "crimeBossInstallMode": {
             "title": "Установлення нових модів",
@@ -579,8 +579,8 @@
     "drop": {
         "overlayTitle": "Відпустіть, щоб установити",
         "overlaySubtitle": "Відпустіть, щоб установити в {game}",
-        "installing": "Встановлення…",
-        "installingCount": "Встановлення: {current} із {total}…",
+        "installing": "Встановлення...",
+        "installingCount": "Встановлення: {current} із {total}...",
         "installed": "Установлено модів: {count}",
         "installedSingle": "Установлено 1 мод",
         "needsPicker": "Деякі архіви наразі можна встановити лише зі сторінки мода",

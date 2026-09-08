@@ -4,8 +4,8 @@
         "install": "Установить",
         "nonPakWarning": "Неподдерживаемый формат",
         "openLink": "Открыть ссылку",
-        "installing": "Установка…",
-        "downloading": "Загрузка…",
+        "installing": "Установка...",
+        "downloading": "Загрузка...",
         "installed": "Установлено",
         "remove": "Удалить",
         "fileMissing": "Файл отсутствует",
@@ -14,7 +14,7 @@
         "depNeedsManualInstall": "Для загрузки этой зависимости нужно сделать выбор. Откройте страницу мода, чтобы установить её.",
         "fix": "Исправить",
         "reinstall": "Переустановить",
-        "loading": "Загрузка…",
+        "loading": "Загрузка...",
         "cancel": "Отмена",
         "close": "Закрыть",
         "dontShowAgain": "Больше не показывать",
@@ -26,7 +26,7 @@
     },
     "app": {
         "modsHidden": "Моды скрыты — игра была запущена без модов и, возможно, ещё работает.",
-        "stateUnreadable": "! Modrex could not read its own mod list for this game, so the mods below were found by scanning the folder and no changes are being saved. Details are in the log.",
+        "stateUnreadable": "Modrex не смог прочитать список модов для этой игры — моды ниже найдены путём сканирования папки, и изменения не сохраняются. Подробности в файле лога.",
         "restoreMods": "Восстановить моды",
         "updateAction": "Обновить",
         "updateInstall": "Перезапустить и установить",
@@ -60,11 +60,11 @@
         "restore": "Восстановить",
         "close": "Закрыть",
         "sisr": {
-            "unsupported": "! SISR auto-launch is not supported on this operating system. The game was launched without it.",
-            "notInstalled": "! SISR was not found. The game was launched without it.",
-            "setupRequired": "! SISR needs its first-run setup before controller redirection will work. The game was launched anyway.",
-            "startFailed": "! SISR failed to start. The game was launched without it.",
-            "startUnconfirmed": "! Modrex could not confirm that SISR started. The game was launched anyway."
+            "unsupported": "Автозапуск SISR не поддерживается в этой операционной системе. Игра запущена без него.",
+            "notInstalled": "SISR не найден. Игра запущена без него.",
+            "setupRequired": "Перед перенаправлением контроллера нужно выполнить первоначальную настройку SISR. Игра всё равно запущена.",
+            "startFailed": "Не удалось запустить SISR. Игра запущена без него.",
+            "startUnconfirmed": "Modrex не смог подтвердить запуск SISR. Игра всё равно запущена."
         }
     },
     "sidebar": {
@@ -86,18 +86,18 @@
         "title": "Игры",
         "installedOnly": "Только установленные",
         "searchLabel": "Поиск игр",
-        "searchPlaceholder": "Поиск игр…",
+        "searchPlaceholder": "Поиск игр...",
         "noMatches": "Игры не найдены"
     },
     "browse": {
         "title": "Просмотр модов",
         "gameNotFound": "Игра не найдена — установка отключена",
         "goToSettings": "Настроить в настройках",
-        "searchPlaceholder": "Поиск модов…",
+        "searchPlaceholder": "Поиск модов...",
         "allCategories": "Все категории",
         "tags": "Теги",
         "tagsCount": "Теги ({count})",
-        "tagFilterSearch": "Фильтр тегов…",
+        "tagFilterSearch": "Фильтр тегов...",
         "tagFilterClear": "Очистить",
         "tagFilterEmpty": "Теги не найдены",
         "noMods": "Моды не найдены",
@@ -113,7 +113,7 @@
         }
     },
     "nexus": {
-        "searchPlaceholder": "Поиск модов…",
+        "searchPlaceholder": "Поиск модов...",
         "noMods": "Моды не найдены",
         "loadFailed": "Не удалось загрузить моды",
         "modCount": "{total} модов",
@@ -130,7 +130,7 @@
     "nexusSession": {
         "expired": "Срок действия входа в Nexus Mods истёк. Просмотр, установка и проверка обновлений модов с Nexus приостановлены, пока вы не войдёте снова.",
         "signIn": "Войти снова",
-        "awaiting": "Ожидание браузера…",
+        "awaiting": "Ожидание браузера...",
         "failed": "Не удалось войти в Nexus Mods: {error}"
     },
     "installed": {
@@ -142,13 +142,13 @@
         "modCountSingle": "{count} мод",
         "modCountFiltered": "{count} из {total} модов",
         "empty": "Моды пока не установлены",
-        "identifyingNew": "Определение {count} новых модов…",
-        "filterPlaceholder": "Поиск модов…",
+        "identifyingNew": "Определение {count} новых модов...",
+        "filterPlaceholder": "Поиск модов...",
         "filterEmpty": "Нет модов, соответствующих запросу «{query}»",
         "reinstallFailed": "Не удалось переустановить: {error}",
-        "actionFailed": "! {name} could not be changed: {error}",
-        "actionFailedSome": "! {count} mods could not be changed ({names}): {error}",
-        "refreshFailed": "! The installed mod list could not be refreshed: {error}",
+        "actionFailed": "Не удалось изменить «{name}»: {error}",
+        "actionFailedSome": "Не удалось изменить {count} модов ({names}): {error}",
+        "refreshFailed": "Не удалось обновить список установленных модов: {error}",
         "updatesAvailable": "Доступны обновления для {count} модов",
         "updatesAvailableSingle": "Доступно обновление для {count} мода",
         "reviewUpdates": "Просмотреть обновления",
@@ -169,7 +169,7 @@
         },
         "fileCount": "{count} файлов",
         "manageFiles": {
-            "searchPlaceholder": "Поиск файлов…",
+            "searchPlaceholder": "Поиск файлов...",
             "enableAll": "Включить все",
             "disableAll": "Отключить все",
             "noMatches": "Нет файлов, соответствующих запросу «{query}»",
@@ -180,22 +180,22 @@
         "updatesModal": {
             "title": "Доступные обновления ({count})",
             "update": "Обновить",
-            "updating": "Обновление…",
+            "updating": "Обновление...",
             "updatingProgress": "Обновление {done} / {total}",
             "updateSelected": "Обновить выбранное ({count})",
             "error": "Не удалось обновить. Проверьте подключение и повторите попытку."
         },
         "pakViewer": {
-            "title": "! Pak contents",
-            "open": "! View pak contents",
-            "searchPlaceholder": "! Search assets",
-            "assetCount": "! {count} assets",
-            "matchCount": "! {count} of {total} assets",
-            "loading": "! Reading pak",
-            "empty": "! No assets found",
-            "noMatches": "! No assets match \"{query}\"",
-            "error": "! Couldn't read the pak.",
-            "aesHint": "! Encrypted paks need this game's AES key."
+            "title": "Содержимое pak-файла",
+            "open": "Просмотреть содержимое pak-файла",
+            "searchPlaceholder": "Поиск ассетов...",
+            "assetCount": "{count} ассетов",
+            "matchCount": "{count} из {total} ассетов",
+            "loading": "Чтение pak-файла...",
+            "empty": "Ассеты не найдены",
+            "noMatches": "Нет ассетов, соответствующих запросу «{query}»",
+            "error": "Не удалось прочитать pak-файл.",
+            "aesHint": "Зашифрованным pak-файлам нужен AES-ключ этой игры."
         },
         "modMenu": {
             "open": "Параметры",
@@ -203,7 +203,7 @@
             "identify": "Определить"
         },
         "identifyNexus": {
-            "identifying": "Определение…",
+            "identifying": "Определение...",
             "identified": "Определено как «{name}»",
             "notFound": "Совпадений на Nexus не найдено",
             "ambiguous": "На Nexus найдено несколько возможных совпадений",
@@ -221,7 +221,7 @@
             "confirmTitleToModkit": "Переместить в Mods/?",
             "confirmBodyToModkit": "Перемещает «{name}» в Mods/, где он сможет объединяться с содержимым других модов.",
             "confirm": "Переместить",
-            "moving": "Перемещение…",
+            "moving": "Перемещение...",
             "error": "Не удалось переместить: {error}"
         },
         "health": {
@@ -306,7 +306,7 @@
             "external": "Скачать",
             "count": "{count} загр.",
             "viaNexus": "Скачать через Nexus",
-            "awaitingNexus": "Ожидание браузера…",
+            "awaitingNexus": "Ожидание браузера...",
             "categoryMain": "Основные файлы",
             "categoryUpdate": "Обновления",
             "categoryOptional": "Дополнительные файлы",
@@ -349,7 +349,7 @@
         "requiresHost": "Это дополнение устанавливается в {hostName}, который ещё не установлен. Сначала установите его, затем это дополнение.",
         "installHost": "Установить {hostName}",
         "install": "Установить ({count})",
-        "installing": "Установка…"
+        "installing": "Установка..."
     },
     "unrecognized": {
         "title": "Не удалось определить расположение мода",
@@ -360,25 +360,25 @@
         "title": "Установить как папку мода?",
         "body": "У этого архива нет собственной вложенной папки, поэтому Modrex не может автоматически определить название мода. Установить всё его содержимое как «{name}» в CrimeBoss/Mods?",
         "install": "Установить",
-        "installing": "Установка…"
+        "installing": "Установка..."
     },
     "ue4ssReplace": {
-        "title": "! Replace the installed UE4SS?",
-        "body": "! {name} replaces the UE4SS that is already installed. The installed release is removed first: the two put their engine and settings in different places, so leaving it in place would load both.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "modsListNote": "! Your own mods keep their entries in the loader's mod list.",
-        "replace": "! Replace",
-        "replacing": "! Replacing..."
+        "title": "Заменить установленный UE4SS?",
+        "body": "«{name}» заменяет уже установленный UE4SS. Установленная версия будет сначала удалена: обе версии хранят движок и настройки в разных местах, поэтому если оставить старую, загрузятся обе.",
+        "removed": "Удалено",
+        "kept": "Оставлено",
+        "nothingOfYours": "В папке Mods загрузчика нет ваших собственных модов.",
+        "modsListNote": "Ваши моды сохранят свои записи в списке модов загрузчика.",
+        "replace": "Заменить",
+        "replacing": "Замена..."
     },
     "ue4ssRemove": {
-        "title": "! Remove UE4SS?",
-        "body": "! UE4SS is what loads Lua mods, so removing it stops them running until you install it again. Only the files it installed are deleted.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "removing": "! Removing..."
+        "title": "Удалить UE4SS?",
+        "body": "UE4SS загружает Lua-моды, поэтому его удаление остановит их работу до повторной установки. Будут удалены только файлы, установленные им самим.",
+        "removed": "Удалено",
+        "kept": "Оставлено",
+        "nothingOfYours": "В папке Mods загрузчика нет ваших собственных модов.",
+        "removing": "Удаление..."
     },
     "depsWarning": {
         "title": "Отсутствуют обязательные зависимости",
@@ -394,7 +394,7 @@
         "body": "Mods/ объединяется с содержимым других модов. ~mods — старый формат без объединения.",
         "auto": "Mods/ (ModKit)",
         "legacy": "~mods (устаревший pak)",
-        "installing": "Установка…",
+        "installing": "Установка...",
         "error": "Установка не удалась: {error}"
     },
     "settings": {
@@ -404,24 +404,24 @@
             "description": "Язык, используемый во всём приложении."
         },
         "accentColor": {
-            "title": "! Accent color",
-            "description": "! Accent color used throughout the app.",
-            "orange": "! Orange",
-            "purple": "! Purple",
-            "green": "! Green",
-            "blue": "! Blue",
-            "red": "! Red",
-            "gray": "! Gray"
+            "title": "Акцентный цвет",
+            "description": "Акцентный цвет, используемый во всём приложении.",
+            "orange": "Оранжевый",
+            "purple": "Фиолетовый",
+            "green": "Зелёный",
+            "blue": "Синий",
+            "red": "Красный",
+            "gray": "Серый"
         },
         "gamePath": {
             "title": "Путь к игре",
             "description": "Путь к установленной {game}. Определяется автоматически по установленным лаунчерам, если не задан вручную.",
             "notFound": "Не найдено",
-            "detecting": "Определение…",
+            "detecting": "Определение...",
             "reset": "Сбросить",
             "browse": "Обзор",
             "pickTitle": "Выберите папку установки {game}",
-            "picking": "Выбор…",
+            "picking": "Выбор...",
             "autoDetected": "Определено автоматически",
             "notDetected": "Не удалось определить установку {game} — задайте путь вручную.",
             "invalid": "Выбранная папка не является корректной установкой {game}."
@@ -429,7 +429,7 @@
         "launcher": {
             "title": "Лаунчер",
             "description": "Как запускать {game}. Определяется автоматически по установленным магазинам.",
-            "detecting": "Определение…",
+            "detecting": "Определение...",
             "steam": "Steam",
             "epic": "Epic Games",
             "xbox": "Xbox",
@@ -439,28 +439,28 @@
         },
         "launchOptions": {
             "title": "Параметры запуска",
-            "description": "! {flag} is needed for most of this game's mods to load correctly.",
-            "xboxNote": "! Launch options are not supported on Microsoft Store."
+            "description": "{flag} требуется для корректной загрузки большинства модов этой игры.",
+            "xboxNote": "Параметры запуска не поддерживаются в Microsoft Store."
         },
         "crashReporter": {
             "title": "Очистка окна сбоев",
             "description": "Устраняет проблему с пустым окном отчёта о сбое для игр с нестабильным механизмом отчётов, удаляя его файлы перед запуском. По умолчанию отключено и может не требоваться для каждой игры."
         },
         "sisr": {
-            "title": "! Auto-launch SISR",
-            "description": "! Start SISR (Steam Input System Redirector) before launching a game when it is not already running, so Steam Input controllers work with games launched outside Steam.",
-            "running": "! SISR is running.",
-            "notRunning": "! SISR is not running. It will start when you launch a game.",
-            "notInstalled": "! SISR was not found in its default installation location.",
-            "setupRequired": "! Complete SISR's first-run Steam setup before using auto-launch.",
-            "setup": "! Set up SISR",
-            "finishSetup": "! Finish setup",
-            "failed": "! SISR setting failed: {error}"
+            "title": "Автозапуск SISR",
+            "description": "Запускать SISR (Steam Input System Redirector) перед игрой, если он ещё не запущен, чтобы контроллеры Steam Input работали в играх, запущенных не через Steam.",
+            "running": "SISR запущен.",
+            "notRunning": "SISR не запущен. Он запустится при запуске игры.",
+            "notInstalled": "SISR не найден в стандартном месте установки.",
+            "setupRequired": "Перед использованием автозапуска завершите первоначальную настройку SISR через Steam.",
+            "setup": "Настроить SISR",
+            "finishSetup": "Завершить настройку",
+            "failed": "Не удалось настроить SISR: {error}"
         },
         "updates": {
             "title": "Обновления",
             "check": "Проверить обновления",
-            "checking": "Проверка…",
+            "checking": "Проверка...",
             "upToDate": "У вас последняя версия"
         },
         "logs": {
@@ -498,7 +498,7 @@
             "title": "Хранилище",
             "dangerZone": "Опасная зона",
             "dangerZoneDescription": "Эти действия удаляют локально хранящиеся данные. Кэши освобождают место на диске и восстанавливаются автоматически при использовании приложения; сброс возвращает настройки по умолчанию. Ни одно из этих действий не затрагивает установленные моды или файлы игры.",
-            "clearing": "Очистка…",
+            "clearing": "Очистка...",
             "clearImages": "Очистить изображения",
             "clearModInfo": "Очистить сведения о модах",
             "clearDatabase": "Очистить базу данных",
@@ -524,7 +524,7 @@
             "resetConfirmTitle": "Сбросить настройки?",
             "resetConfirmBody": "Это очистит сохранённые пути к играм, выбор лаунчера, настройки и выбор в отношении аналитики, вернув Modrex к состоянию первого запуска. Установленные моды и файлы игры не пострадают.",
             "resetConfirm": "Сбросить настройки",
-            "resetting": "Сброс…"
+            "resetting": "Сброс..."
         },
         "crimeBossInstallMode": {
             "title": "Установка новых модов",
@@ -579,8 +579,8 @@
     "drop": {
         "overlayTitle": "Отпустите, чтобы установить",
         "overlaySubtitle": "Отпустите, чтобы установить в {game}",
-        "installing": "Установка…",
-        "installingCount": "Установка {current} из {total}…",
+        "installing": "Установка...",
+        "installingCount": "Установка {current} из {total}...",
         "installed": "Установлено модов: {count}",
         "installedSingle": "Установлен 1 мод",
         "needsPicker": "Некоторые архивы пока можно установить только со страницы мода",
