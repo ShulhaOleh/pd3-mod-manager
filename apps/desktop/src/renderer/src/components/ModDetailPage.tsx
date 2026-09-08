@@ -60,6 +60,7 @@ import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from './CrimeBossFlatArchiveModal'
 import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import { Ue4ssRemoveModal } from './Ue4ssRemoveModal'
 import type { LoaderReplacePayload } from './Ue4ssReplaceModal'
 import { CrimeBossInstallTargetModal } from './CrimeBossInstallTargetModal'
 import { useCrimeBossInstallTarget } from '../hooks/useCrimeBossInstallTarget'
@@ -289,6 +290,7 @@ export function ModDetailPage({
         setLoaderFlag,
         installLoader,
         loaderModIds,
+        refreshLoader,
         refreshUe4ssPage,
         loaderPageInstalled,
     } = useLoaderState(activeGame, gamePath)
@@ -299,6 +301,7 @@ export function ModDetailPage({
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
     const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
+    const [removingLoader, setRemovingLoader] = useState(false)
     const crimeBossInstallTarget = useCrimeBossInstallTarget(
         activeGame,
         gamePath,
@@ -721,6 +724,18 @@ export function ModDetailPage({
                     onClose={() => setLoaderReplaceData(null)}
                 />
             )}
+            {removingLoader && gamePath && (
+                <Ue4ssRemoveModal
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={async () => {
+                        await refreshLoader('ue4ss')
+                        await refreshUe4ssPage()
+                        await onRefreshInstalled()
+                    }}
+                    onClose={() => setRemovingLoader(false)}
+                />
+            )}
             {unrecognizedModId !== null && (
                 <UnrecognizedArchiveModal
                     modId={unrecognizedModId}
@@ -810,9 +825,25 @@ export function ModDetailPage({
                         </>
                     )}
                     {mod && isLoaderMod && loaderModInstalled && (
-                        <span className="text-xs text-success-text">
-                            {t('detail.deps.statusInstalled')}
-                        </span>
+                        <>
+                            <span className="text-xs text-success-text">
+                                {t('detail.deps.statusInstalled')}
+                            </span>
+                            {/* Only UE4SS can be removed from here: it is the one loader whose
+                                files Modrex can tell apart from the game's and the user's. */}
+                            {thisLoader?.id === 'ue4ss' && (
+                                <Tooltip content={t('common.remove')}>
+                                    <Button
+                                        variant="danger"
+                                        size="icon-md"
+                                        disabled={!canAct}
+                                        onClick={() => setRemovingLoader(true)}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </Tooltip>
+                            )}
+                        </>
                     )}
                     {mod && installedFiles.length === 0 && !(isLoaderMod && loaderModInstalled) && (
                         <div className="flex flex-col items-end gap-1">
