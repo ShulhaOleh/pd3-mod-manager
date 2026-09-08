@@ -535,10 +535,17 @@ fn place(staging: &Staging, dest: &Path) -> Result<(), (String, Vec<PathBuf>)> {
 /// A release ships its own mods.txt listing only its bundled sub-mods, so writing it over the
 /// installed one would drop every enable and disable the user set for their own mods. A file
 /// that is not there carries nothing; one that cannot be read is a failure, not an absence.
+///
+/// A path whose parent is a file rather than a directory is absence too, and the platforms
+/// disagree on how they say so: Windows reports it as NotFound, Unix as NotADirectory. Both
+/// mean this file cannot be there, so both carry nothing rather than failing the replacement.
 fn user_mods_txt_entries(path: &Path) -> Result<Vec<String>, String> {
+    use std::io::ErrorKind;
     let content = match std::fs::read_to_string(path) {
         Ok(content) => content,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            return Ok(Vec::new())
+        }
         Err(e) => return Err(format!("{} could not be read: {e}", path.display())),
     };
     Ok(content

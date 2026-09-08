@@ -5729,10 +5729,10 @@ async fn own_scan(
     )
 }
 
-fn own_filename(mods: &[InstalledMod], uid: &str) -> String {
+fn own_filename(mods: &[InstalledMod], wanted: &str) -> String {
     mods.iter()
-        .find(|m| m.uid == uid)
-        .unwrap_or_else(|| panic!("{uid} missing from the scan result"))
+        .find(|m| m.uid == wanted)
+        .unwrap_or_else(|| panic!("{wanted} missing from the scan result"))
         .filename
         .clone()
 }

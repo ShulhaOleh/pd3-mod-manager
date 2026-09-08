@@ -596,6 +596,21 @@ fn a_failed_replacement_leaves_no_recovery_data_behind_in_the_game_folder() {
 }
 
 #[test]
+fn a_mods_list_under_something_that_is_not_a_directory_carries_nothing() {
+    // The UE5 layout's mods.txt sits inside a UE4SS folder. When that name is taken by a file,
+    // the list cannot be there, and the platforms say so differently: Windows reports NotFound
+    // and Unix NotADirectory. Refusing the replacement over it is wrong on either.
+    let tmp = TempDir::new().unwrap();
+    let dir = ue4ss_dir(&tmp);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("UE4SS"), b"not a directory").unwrap();
+
+    let carried = user_mods_txt_entries(&dir.join("UE4SS").join("Mods").join("mods.txt")).unwrap();
+
+    assert!(carried.is_empty(), "{carried:?}");
+}
+
+#[test]
 fn an_unreadable_mods_list_is_a_failure_rather_than_an_empty_one() {
     // Reading it as empty would silently drop every enable and disable the user set.
     let tmp = TempDir::new().unwrap();

@@ -707,7 +707,7 @@ fn relocate_moved_mods(
             Err(e) => log::warn!(
                 "reconcile: cannot inspect the files of '{}' ({}), leaving it where it is: {e}",
                 m.name,
-                m.uid
+                m.filename
             ),
         }
     }
