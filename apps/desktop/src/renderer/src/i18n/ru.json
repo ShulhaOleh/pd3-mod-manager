@@ -4,8 +4,8 @@
         "install": "Установить",
         "nonPakWarning": "Неподдерживаемый формат",
         "openLink": "Открыть ссылку",
-        "installing": "Установка…",
-        "downloading": "Загрузка…",
+        "installing": "Установка...",
+        "downloading": "Загрузка...",
         "installed": "Установлено",
         "remove": "Удалить",
         "fileMissing": "Файл отсутствует",
@@ -14,7 +14,7 @@
         "depNeedsManualInstall": "Для загрузки этой зависимости нужно сделать выбор. Откройте страницу мода, чтобы установить её.",
         "fix": "Исправить",
         "reinstall": "Переустановить",
-        "loading": "Загрузка…",
+        "loading": "Загрузка...",
         "cancel": "Отмена",
         "close": "Закрыть",
         "dontShowAgain": "Больше не показывать",
@@ -86,18 +86,18 @@
         "title": "Игры",
         "installedOnly": "Только установленные",
         "searchLabel": "Поиск игр",
-        "searchPlaceholder": "Поиск игр…",
+        "searchPlaceholder": "Поиск игр...",
         "noMatches": "Игры не найдены"
     },
     "browse": {
         "title": "Просмотр модов",
         "gameNotFound": "Игра не найдена — установка отключена",
         "goToSettings": "Настроить в настройках",
-        "searchPlaceholder": "Поиск модов…",
+        "searchPlaceholder": "Поиск модов...",
         "allCategories": "Все категории",
         "tags": "Теги",
         "tagsCount": "Теги ({count})",
-        "tagFilterSearch": "Фильтр тегов…",
+        "tagFilterSearch": "Фильтр тегов...",
         "tagFilterClear": "Очистить",
         "tagFilterEmpty": "Теги не найдены",
         "noMods": "Моды не найдены",
@@ -113,7 +113,7 @@
         }
     },
     "nexus": {
-        "searchPlaceholder": "Поиск модов…",
+        "searchPlaceholder": "Поиск модов...",
         "noMods": "Моды не найдены",
         "loadFailed": "Не удалось загрузить моды",
         "modCount": "{total} модов",
@@ -130,7 +130,7 @@
     "nexusSession": {
         "expired": "Срок действия входа в Nexus Mods истёк. Просмотр, установка и проверка обновлений модов с Nexus приостановлены, пока вы не войдёте снова.",
         "signIn": "Войти снова",
-        "awaiting": "Ожидание браузера…",
+        "awaiting": "Ожидание браузера...",
         "failed": "Не удалось войти в Nexus Mods: {error}"
     },
     "installed": {
@@ -142,8 +142,8 @@
         "modCountSingle": "{count} мод",
         "modCountFiltered": "{count} из {total} модов",
         "empty": "Моды пока не установлены",
-        "identifyingNew": "Определение {count} новых модов…",
-        "filterPlaceholder": "Поиск модов…",
+        "identifyingNew": "Определение {count} новых модов...",
+        "filterPlaceholder": "Поиск модов...",
         "filterEmpty": "Нет модов, соответствующих запросу «{query}»",
         "reinstallFailed": "Не удалось переустановить: {error}",
         "actionFailed": "Не удалось изменить «{name}»: {error}",
@@ -169,7 +169,7 @@
         },
         "fileCount": "{count} файлов",
         "manageFiles": {
-            "searchPlaceholder": "Поиск файлов…",
+            "searchPlaceholder": "Поиск файлов...",
             "enableAll": "Включить все",
             "disableAll": "Отключить все",
             "noMatches": "Нет файлов, соответствующих запросу «{query}»",
@@ -180,7 +180,7 @@
         "updatesModal": {
             "title": "Доступные обновления ({count})",
             "update": "Обновить",
-            "updating": "Обновление…",
+            "updating": "Обновление...",
             "updatingProgress": "Обновление {done} / {total}",
             "updateSelected": "Обновить выбранное ({count})",
             "error": "Не удалось обновить. Проверьте подключение и повторите попытку."
@@ -188,10 +188,10 @@
         "pakViewer": {
             "title": "Содержимое pak-файла",
             "open": "Просмотреть содержимое pak-файла",
-            "searchPlaceholder": "Поиск ассетов…",
+            "searchPlaceholder": "Поиск ассетов...",
             "assetCount": "{count} ассетов",
             "matchCount": "{count} из {total} ассетов",
-            "loading": "Чтение pak-файла…",
+            "loading": "Чтение pak-файла...",
             "empty": "Ассеты не найдены",
             "noMatches": "Нет ассетов, соответствующих запросу «{query}»",
             "error": "Не удалось прочитать pak-файл.",
@@ -203,7 +203,7 @@
             "identify": "Определить"
         },
         "identifyNexus": {
-            "identifying": "Определение…",
+            "identifying": "Определение...",
             "identified": "Определено как «{name}»",
             "notFound": "Совпадений на Nexus не найдено",
             "ambiguous": "На Nexus найдено несколько возможных совпадений",
@@ -221,7 +221,7 @@
             "confirmTitleToModkit": "Переместить в Mods/?",
             "confirmBodyToModkit": "Перемещает «{name}» в Mods/, где он сможет объединяться с содержимым других модов.",
             "confirm": "Переместить",
-            "moving": "Перемещение…",
+            "moving": "Перемещение...",
             "error": "Не удалось переместить: {error}"
         },
         "health": {
@@ -306,7 +306,7 @@
             "external": "Скачать",
             "count": "{count} загр.",
             "viaNexus": "Скачать через Nexus",
-            "awaitingNexus": "Ожидание браузера…",
+            "awaitingNexus": "Ожидание браузера...",
             "categoryMain": "Основные файлы",
             "categoryUpdate": "Обновления",
             "categoryOptional": "Дополнительные файлы",
@@ -349,7 +349,7 @@
         "requiresHost": "Это дополнение устанавливается в {hostName}, который ещё не установлен. Сначала установите его, затем это дополнение.",
         "installHost": "Установить {hostName}",
         "install": "Установить ({count})",
-        "installing": "Установка…"
+        "installing": "Установка..."
     },
     "unrecognized": {
         "title": "Не удалось определить расположение мода",
@@ -360,7 +360,7 @@
         "title": "Установить как папку мода?",
         "body": "У этого архива нет собственной вложенной папки, поэтому Modrex не может автоматически определить название мода. Установить всё его содержимое как «{name}» в CrimeBoss/Mods?",
         "install": "Установить",
-        "installing": "Установка…"
+        "installing": "Установка..."
     },
     "ue4ssReplace": {
         "title": "Заменить установленный UE4SS?",
@@ -370,7 +370,7 @@
         "nothingOfYours": "В папке Mods загрузчика нет ваших собственных модов.",
         "modsListNote": "Ваши моды сохранят свои записи в списке модов загрузчика.",
         "replace": "Заменить",
-        "replacing": "Замена…"
+        "replacing": "Замена..."
     },
     "ue4ssRemove": {
         "title": "Удалить UE4SS?",
@@ -378,7 +378,7 @@
         "removed": "Удалено",
         "kept": "Оставлено",
         "nothingOfYours": "В папке Mods загрузчика нет ваших собственных модов.",
-        "removing": "Удаление…"
+        "removing": "Удаление..."
     },
     "depsWarning": {
         "title": "Отсутствуют обязательные зависимости",
@@ -394,7 +394,7 @@
         "body": "Mods/ объединяется с содержимым других модов. ~mods — старый формат без объединения.",
         "auto": "Mods/ (ModKit)",
         "legacy": "~mods (устаревший pak)",
-        "installing": "Установка…",
+        "installing": "Установка...",
         "error": "Установка не удалась: {error}"
     },
     "settings": {
@@ -417,11 +417,11 @@
             "title": "Путь к игре",
             "description": "Путь к установленной {game}. Определяется автоматически по установленным лаунчерам, если не задан вручную.",
             "notFound": "Не найдено",
-            "detecting": "Определение…",
+            "detecting": "Определение...",
             "reset": "Сбросить",
             "browse": "Обзор",
             "pickTitle": "Выберите папку установки {game}",
-            "picking": "Выбор…",
+            "picking": "Выбор...",
             "autoDetected": "Определено автоматически",
             "notDetected": "Не удалось определить установку {game} — задайте путь вручную.",
             "invalid": "Выбранная папка не является корректной установкой {game}."
@@ -429,7 +429,7 @@
         "launcher": {
             "title": "Лаунчер",
             "description": "Как запускать {game}. Определяется автоматически по установленным магазинам.",
-            "detecting": "Определение…",
+            "detecting": "Определение...",
             "steam": "Steam",
             "epic": "Epic Games",
             "xbox": "Xbox",
@@ -460,7 +460,7 @@
         "updates": {
             "title": "Обновления",
             "check": "Проверить обновления",
-            "checking": "Проверка…",
+            "checking": "Проверка...",
             "upToDate": "У вас последняя версия"
         },
         "logs": {
@@ -498,7 +498,7 @@
             "title": "Хранилище",
             "dangerZone": "Опасная зона",
             "dangerZoneDescription": "Эти действия удаляют локально хранящиеся данные. Кэши освобождают место на диске и восстанавливаются автоматически при использовании приложения; сброс возвращает настройки по умолчанию. Ни одно из этих действий не затрагивает установленные моды или файлы игры.",
-            "clearing": "Очистка…",
+            "clearing": "Очистка...",
             "clearImages": "Очистить изображения",
             "clearModInfo": "Очистить сведения о модах",
             "clearDatabase": "Очистить базу данных",
@@ -524,7 +524,7 @@
             "resetConfirmTitle": "Сбросить настройки?",
             "resetConfirmBody": "Это очистит сохранённые пути к играм, выбор лаунчера, настройки и выбор в отношении аналитики, вернув Modrex к состоянию первого запуска. Установленные моды и файлы игры не пострадают.",
             "resetConfirm": "Сбросить настройки",
-            "resetting": "Сброс…"
+            "resetting": "Сброс..."
         },
         "crimeBossInstallMode": {
             "title": "Установка новых модов",
@@ -579,8 +579,8 @@
     "drop": {
         "overlayTitle": "Отпустите, чтобы установить",
         "overlaySubtitle": "Отпустите, чтобы установить в {game}",
-        "installing": "Установка…",
-        "installingCount": "Установка {current} из {total}…",
+        "installing": "Установка...",
+        "installingCount": "Установка {current} из {total}...",
         "installed": "Установлено модов: {count}",
         "installedSingle": "Установлен 1 мод",
         "needsPicker": "Некоторые архивы пока можно установить только со страницы мода",

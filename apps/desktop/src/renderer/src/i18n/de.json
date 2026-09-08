@@ -5,7 +5,7 @@
         "nonPakWarning": "Nicht unterstütztes Format",
         "openLink": "Link öffnen",
         "installing": "Installation",
-        "downloading": "Herunterladen…",
+        "downloading": "Herunterladen...",
         "installed": "Installiert",
         "remove": "Deinstallieren",
         "fileMissing": "Fehlende Datei",
@@ -14,7 +14,7 @@
         "depNeedsManualInstall": "Der Download dieser Abhängigkeit hat eine Auswahl, Öffne die Seiter der Abhängigkeit und lade es herunter.",
         "fix": "Reparieren",
         "reinstall": "Neu-installieren",
-        "loading": "Laden…",
+        "loading": "Laden...",
         "cancel": "Abbrechen",
         "close": "Schließen",
         "dontShowAgain": "Nicht nochmal anzeigen",
@@ -86,7 +86,7 @@
         "title": "Spiele",
         "installedOnly": "Nur installierte",
         "searchLabel": "Durchsuche Spiele",
-        "searchPlaceholder": "Durchsuche alle Spiele…",
+        "searchPlaceholder": "Durchsuche alle Spiele...",
         "noMatches": "Keine Spiele entdeckt"
     },
     "browse": {
@@ -97,7 +97,7 @@
         "allCategories": "Alle Kategorien",
         "tags": "Tags",
         "tagsCount": "Tags ({count})",
-        "tagFilterSearch": "Tags filtern…",
+        "tagFilterSearch": "Tags filtern...",
         "tagFilterClear": "Leeren",
         "tagFilterEmpty": "Keine Tags gefunden",
         "noMods": "Keine Mods gefunden",
@@ -113,7 +113,7 @@
         }
     },
     "nexus": {
-        "searchPlaceholder": "Mods durchsuchen…",
+        "searchPlaceholder": "Mods durchsuchen...",
         "noMods": "Keine Mods gefunden",
         "loadFailed": "Mods konnten nicht geladen werden",
         "modCount": "{total} Mods",
@@ -130,7 +130,7 @@
     "nexusSession": {
         "expired": "Deine Nexus Mods-Anmeldung ist abgelaufen. Das Durchsuchen, Installieren und Suchen nach Updates für Nexus-Mods ist pausiert, bis du dich wieder anmeldest.",
         "signIn": "Erneut anmelden",
-        "awaiting": "Warte auf Browser…",
+        "awaiting": "Warte auf Browser...",
         "failed": "Nexus Mods-Anmeldung fehlgeschlagen: {error}"
     },
     "installed": {
@@ -142,8 +142,8 @@
         "modCountSingle": "{count} Mod",
         "modCountFiltered": "{count} von {total} Mods",
         "empty": "Noch keine Mods installiert",
-        "identifyingNew": "Identifiziere {count} neue Mods…",
-        "filterPlaceholder": "Mods durchsuchen…",
+        "identifyingNew": "Identifiziere {count} neue Mods...",
+        "filterPlaceholder": "Mods durchsuchen...",
         "filterEmpty": "Keine Mods stimmen mit „{query}“ überein",
         "reinstallFailed": "Erneute Installation fehlgeschlagen: {error}",
         "actionFailed": "{name} konnte nicht geändert werden: {error}",
@@ -169,7 +169,7 @@
         },
         "fileCount": "{count} Dateien",
         "manageFiles": {
-            "searchPlaceholder": "Dateien durchsuchen…",
+            "searchPlaceholder": "Dateien durchsuchen...",
             "enableAll": "Alle aktivieren",
             "disableAll": "Alle deaktivieren",
             "noMatches": "Keine Dateien stimmen mit „{query}“ überein",
@@ -180,7 +180,7 @@
         "updatesModal": {
             "title": "Verfügbare Updates ({count})",
             "update": "Aktualisieren",
-            "updating": "Aktualisiere…",
+            "updating": "Aktualisiere...",
             "updatingProgress": "Aktualisiere {done} / {total}",
             "updateSelected": "Ausgewählte aktualisieren ({count})",
             "error": "Aktualisierung fehlgeschlagen. Überprüfe deine Verbindung und versuche es erneut."
@@ -203,7 +203,7 @@
             "identify": "Identifizieren"
         },
         "identifyNexus": {
-            "identifying": "Identifiziere…",
+            "identifying": "Identifiziere...",
             "identified": "Als „{name}“ identifiziert",
             "notFound": "Keine Übereinstimmung auf Nexus gefunden",
             "ambiguous": "Mehrere mögliche Übereinstimmungen auf Nexus gefunden",
@@ -221,7 +221,7 @@
             "confirmTitleToModkit": "Zu Mods/ verschieben?",
             "confirmBodyToModkit": "Verschiebt „{name}“ nach Mods/, wo es sich mit Inhalten anderer Mods zusammenfügen kann.",
             "confirm": "Verschieben",
-            "moving": "Verschiebe…",
+            "moving": "Verschiebe...",
             "error": "Verschieben fehlgeschlagen: {error}"
         },
         "health": {
@@ -306,7 +306,7 @@
             "external": "Herunterladen",
             "count": "{count} DL",
             "viaNexus": "Über Nexus herunterladen",
-            "awaitingNexus": "Warte auf Browser…",
+            "awaitingNexus": "Warte auf Browser...",
             "categoryMain": "Hauptdateien",
             "categoryUpdate": "Updates",
             "categoryOptional": "Optionale Dateien",
@@ -349,7 +349,7 @@
         "requiresHost": "Dieses Add-on wird in {hostName} installiert, welches noch nicht installiert ist. Installiere es zuerst und installiere dann dieses Add-on.",
         "installHost": "{hostName} installieren",
         "install": "Installieren ({count})",
-        "installing": "Installiere…"
+        "installing": "Installiere..."
     },
     "unrecognized": {
         "title": "Diese Mod konnte nicht platziert werden",
@@ -360,7 +360,7 @@
         "title": "Als Mod-Ordner installieren?",
         "body": "Dieses Archiv hat keinen eigenen umschließenden Ordner, daher kann Modrex keinen Mod-Namen automatisch erkennen. Den gesamten Inhalt als „{name}“ unter CrimeBoss/Mods installieren?",
         "install": "Installieren",
-        "installing": "Installiere…"
+        "installing": "Installiere..."
     },
     "ue4ssReplace": {
         "title": "! Replace the installed UE4SS?",
@@ -394,7 +394,7 @@
         "body": "Mods/ wird mit Inhalten anderer Mods zusammengefügt. ~mods ist das ältere Format ohne Zusammenführung.",
         "auto": "Mods/ (ModKit)",
         "legacy": "~mods (Legacy-Pak)",
-        "installing": "Installiere…",
+        "installing": "Installiere...",
         "error": "Installation fehlgeschlagen: {error}"
     },
     "settings": {
@@ -417,11 +417,11 @@
             "title": "Spielpfad",
             "description": "Pfad zu deiner {game}-Installation. Wird automatisch von deinen installierten Launchern erkannt, falls nicht manuell festgelegt.",
             "notFound": "Nicht gefunden",
-            "detecting": "Erkenne…",
+            "detecting": "Erkenne...",
             "reset": "Zurücksetzen",
             "browse": "Durchsuchen",
             "pickTitle": "{game}-Installationsordner auswählen",
-            "picking": "Wähle aus…",
+            "picking": "Wähle aus...",
             "autoDetected": "Automatisch erkannt",
             "notDetected": "{game}-Installation konnte nicht erkannt werden – lege den Pfad manuell fest.",
             "invalid": "Der ausgewählte Ordner ist keine gültige {game}-Installation."
@@ -429,7 +429,7 @@
         "launcher": {
             "title": "Launcher",
             "description": "Wie {game} gestartet wird. Wird automatisch von deinen installierten Stores erkannt.",
-            "detecting": "Erkenne…",
+            "detecting": "Erkenne...",
             "steam": "Steam",
             "epic": "Epic Games",
             "xbox": "Xbox",
@@ -460,7 +460,7 @@
         "updates": {
             "title": "Updates",
             "check": "Nach Updates suchen",
-            "checking": "Suche…",
+            "checking": "Suche...",
             "upToDate": "Du bist auf dem neuesten Stand"
         },
         "logs": {
@@ -498,7 +498,7 @@
             "title": "Speicher",
             "dangerZone": "Gefahrenzone",
             "dangerZoneDescription": "Diese Aktionen löschen lokal gespeicherte Daten. Caches geben Speicherplatz frei und werden bei der Nutzung der App automatisch neu aufgebaut; das Zurücksetzen stellt die Standardeinstellungen wieder her. Keine davon löscht deine installierten Mods oder Spieldateien.",
-            "clearing": "Leere…",
+            "clearing": "Leere...",
             "clearImages": "Bilder löschen",
             "clearModInfo": "Mod-Info löschen",
             "clearDatabase": "Datenbank löschen",
@@ -524,7 +524,7 @@
             "resetConfirmTitle": "Einstellungen zurücksetzen?",
             "resetConfirmBody": "Dies löscht deine gespeicherten Spielpfade, Launcher-Auswahlen, Einstellungen und die Analytik-Auswahl und versetzt Modrex in den Erststart-Zustand zurück. Deine installierten Mods und Spieldateien sind davon nicht betroffen.",
             "resetConfirm": "Einstellungen zurücksetzen",
-            "resetting": "Setze zurück…"
+            "resetting": "Setze zurück..."
         },
         "crimeBossInstallMode": {
             "title": "Neue Mod-Installationen",
@@ -579,8 +579,8 @@
     "drop": {
         "overlayTitle": "Zum Installieren ablegen",
         "overlaySubtitle": "Loslassen, um in {game} zu installieren",
-        "installing": "Installiere…",
-        "installingCount": "Installiere {current} von {total}…",
+        "installing": "Installiere...",
+        "installingCount": "Installiere {current} von {total}...",
         "installed": "{count} Mods installiert",
         "installedSingle": "1 Mod installiert",
         "needsPicker": "Einige Archive müssen vorerst über ihre Mod-Seite installiert werden",
