@@ -157,6 +157,38 @@ pub fn list_loaders() -> Vec<LoaderInfo> {
         .collect()
 }
 
+/// What is installed under a game's UE4SS, for an interface that has to name it rather than
+/// only say yes.
+///
+/// modworkshopId is the page the installed files are attributable to: the proxy DLL's own
+/// bytes when they identify a release, otherwise the page Modrex recorded installing it from.
+/// None means present but unattributable, which is not the same as "every page that
+/// distributes it", and must not be shown as either.
+#[tauri::command]
+#[specta::specta]
+pub fn ue4ss_presence(
+    app: AppHandle,
+    game_id: String,
+    game_path: String,
+) -> crate::commands::ue4ss::LoaderPresence {
+    let settings = crate::commands::settings::read_settings(&app);
+    let launcher = crate::commands::settings::game_settings(&settings, &game_id)
+        .and_then(|gs| gs.launcher.clone());
+    let mut found = crate::commands::ue4ss::presence(&game_id, &game_path, launcher.as_deref());
+    if found.installed && found.modworkshop_id.is_none() {
+        let recorded = crate::commands::settings::game_settings(&settings, &game_id)
+            .and_then(|gs| gs.loaders.get("ue4ss"))
+            .filter(|r| r.source == "modworkshop");
+        if let Some(record) = recorded {
+            found.modworkshop_id = record.remote_id.parse().ok();
+            if found.version.is_none() && !record.version.is_empty() {
+                found.version = Some(record.version.clone());
+            }
+        }
+    }
+    found
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn check_loader(

@@ -1,7 +1,12 @@
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { commands, type InstallOutcome } from '../../shared/bindings'
+import {
+    commands,
+    type InstallOutcome,
+    type LoaderPage,
+    type LoaderPresence,
+} from '../../shared/bindings'
 import type {
     DetectedInstall,
     LoaderInfo,
@@ -12,6 +17,7 @@ import type {
     SisrLaunchIssue,
     SisrStatus,
 } from '../../shared/bindings'
+export type { LoaderPage, LoaderPresence }
 export type {
     InstallOutcome,
     DetectedInstall,
@@ -393,6 +399,16 @@ export const api = {
             })
         )
     },
+    installConfirmedLoader(
+        archiveHandle: string,
+        gameId: string,
+        gamePath: string,
+        page: LoaderPage | null
+    ): Promise<void> {
+        return trackInstall(
+            commands.installConfirmedLoader({ archiveHandle, gameId, gamePath, page })
+        )
+    },
     installCbFlatArchive(
         archiveHandle: string,
         modId: number,
@@ -538,6 +554,9 @@ export const api = {
     },
     checkLoader(loaderId: string, gameId: string, gamePath: string): Promise<boolean> {
         return commands.checkLoader(loaderId, gameId, gamePath)
+    },
+    ue4ssPresence(gameId: string, gamePath: string): Promise<LoaderPresence> {
+        return commands.ue4ssPresence(gameId, gamePath)
     },
     async installLoader(loaderId: string, gamePath: string): Promise<void> {
         await commands.installLoader(loaderId, gamePath)

@@ -6,6 +6,7 @@ import { handleInstallOutcome } from '../installSentinels'
 import type { ZipMultiPakPayload } from '../components/ZipPickerModal'
 import type { HostPackPayload } from '../components/HostPackModal'
 import type { CbFlatArchivePayload } from '../components/CrimeBossFlatArchiveModal'
+import type { LoaderReplacePayload } from '../components/Ue4ssReplaceModal'
 
 export type DropResult = { kind: 'done' | 'error'; message: string }
 
@@ -13,6 +14,7 @@ export type DropSentinel =
     | { kind: 'zip'; payload: ZipMultiPakPayload }
     | { kind: 'host'; payload: HostPackPayload }
     | { kind: 'cb'; payload: CbFlatArchivePayload }
+    | { kind: 'loader'; payload: LoaderReplacePayload }
 
 interface Options {
     gamePath: string | null
@@ -37,7 +39,8 @@ export function useFileDropInstall({ gamePath, activeGame, enabled, onRefreshIns
         name: string
     } | null>(null)
     const [result, setResult] = useState<DropResult | null>(null)
-    // Archives that need a UI decision (multi-pak / host pack / CB flat), shown one modal at a time.
+    // Archives that need a UI decision (multi-pak / host pack / CB flat / loader replacement),
+    // shown one modal at a time.
     const [sentinels, setSentinels] = useState<DropSentinel[]>([])
     // Latest values for the event callback, so it never re-subscribes mid-drag.
     const optsRef = useRef<Options>({ gamePath, activeGame, enabled, onRefreshInstalled })
@@ -76,6 +79,7 @@ export function useFileDropInstall({ gamePath, activeGame, enabled, onRefreshIns
                     onZipMultiPak: (payload) => collected.push({ kind: 'zip', payload }),
                     onHostModPack: (payload) => collected.push({ kind: 'host', payload }),
                     onCbFlatArchive: (payload) => collected.push({ kind: 'cb', payload }),
+                    onLoaderReplace: (payload) => collected.push({ kind: 'loader', payload }),
                     onUnrecognizedArchive: () => {
                         unrecognized = true
                     },

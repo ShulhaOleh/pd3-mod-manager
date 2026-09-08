@@ -34,6 +34,7 @@ pub use self::types::{
 pub use self::zip::{compute_md5, compute_sha256};
 
 // Mod-identification helpers for the get_installed pipeline, see identify.rs
+pub(crate) use self::identify::hash_file;
 use self::identify::staged_content_sha256;
 #[cfg(test)]
 pub(crate) use self::identify::{embedded_modworkshop_id, upgrade_negative_ids_with_conn};
@@ -41,6 +42,7 @@ pub(crate) use self::identify::{
     ensure_untracked_folders, hash_untracked, hashable_file_for_mod_dir, identify_untracked,
     regroup_negative_ids_by_name_suffix, resync_crimeboss_enabled_flags, upgrade_negative_ids,
 };
+pub(crate) use self::ue4ss_modstxt::entry_name as ue4ss_entry_name;
 use crate::commands::analytics::track_mod_installed;
 
 // Internal helpers used by Tauri commands in this file
@@ -93,7 +95,7 @@ use crate::commands::mod_index;
 use crate::commands::settings::{self, game_settings, read_settings};
 use crate::commands::sources;
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
@@ -143,7 +145,52 @@ pub enum InstallOutcome {
     NeedsPicker(zip::ZipMultiPakPayload),
     NeedsHostChoice(zip::HostPackPayload),
     NeedsCbFlatConfirm(zip::CbFlatPayload),
+    NeedsLoaderConfirm(Ue4ssReplacePayload),
     Unrecognized,
+}
+
+/// The mod page a loader package came from. Absent for a dropped file, which has no page
+/// behind it, and the loader is then recorded as having none rather than as coming from
+/// whichever page happened to be recorded before.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LoaderPage {
+    pub source: String,
+    pub remote_id: String,
+    pub file_id: Option<i64>,
+    pub version: String,
+}
+
+impl LoaderPage {
+    fn recorded(self) -> settings::LoaderInstall {
+        settings::LoaderInstall {
+            source: self.source,
+            remote_id: self.remote_id,
+            file_id: self.file_id,
+            version: self.version,
+            installed_at: Utc::now().to_rfc3339(),
+        }
+    }
+}
+
+/// A UE4SS package held back because one is already installed, with what installing it would
+/// do to the installation that is there.
+///
+/// The loader is not tracked in state.json, so replacing it removes files no mod record
+/// describes. What those are depends on which release is installed, which is why they are
+/// named here rather than described in general terms.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Ue4ssReplacePayload {
+    /// Backend-issued handle for the held package. The renderer never learns the path, so it
+    /// cannot name a different archive for the replacement to install.
+    pub archive_handle: String,
+    pub mod_name: String,
+    pub page: Option<LoaderPage>,
+    /// Files of the installed release the replacement removes.
+    pub replaced: Vec<String>,
+    /// Mod folders the user added, which it keeps, along with their entries in mods.txt.
+    pub preserved: Vec<String>,
 }
 
 impl From<InstallPrompt> for InstallOutcome {
@@ -425,20 +472,20 @@ pub async fn install_mod(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(
+            return answer_ue4ss_package(
                 &app,
                 cfg,
                 &game_path,
                 zip_path,
-                Some(settings::LoaderInstall {
+                Some(LoaderPage {
+                    source: "modworkshop".to_string(),
                     remote_id: remote_id.to_string(),
                     file_id: Some(file_id),
                     version: mod_version.clone(),
-                    installed_at: Utc::now().to_rfc3339(),
                 }),
+                mod_name.clone(),
             )
-            .await
-            .map(|()| InstallOutcome::Installed);
+            .await;
         }
         Err(ResolveError::Prompt(prompt)) => {
             return Ok((*prompt)
@@ -603,20 +650,20 @@ pub async fn install_file(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(
+            return answer_ue4ss_package(
                 &app,
                 cfg,
                 &game_path,
                 zip_path,
-                Some(settings::LoaderInstall {
+                Some(LoaderPage {
+                    source: "modworkshop".to_string(),
                     remote_id: mod_id.to_string(),
                     file_id: Some(file_id),
                     version: mod_version.clone(),
-                    installed_at: Utc::now().to_rfc3339(),
                 }),
+                mod_name.clone(),
             )
-            .await
-            .map(|()| InstallOutcome::Installed);
+            .await;
         }
         Err(ResolveError::Prompt(prompt)) => {
             return Ok((*prompt)
@@ -772,17 +819,31 @@ pub(crate) async fn install_nexus_download(
         original_archive: zip_orig,
     } = match resolve_archive_download(downloaded, cfg, staged_archives(app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
+            // Replacing a loader is only offered where the user can be shown what it removes
+            // first, and this path has no channel to ask on. So it installs where there is
+            // nothing to lose and refuses otherwise, rather than replacing silently.
+            let settings = read_settings(app);
+            let launcher = game_settings(&settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
+            if crate::commands::ue4ss::is_installed(cfg.game_id, game_path, launcher.as_deref()) {
+                cleanup::run(&cleanup::CleanupPlan::RemoveOwnedFile(zip_path)).await;
+                return Err(format!(
+                    "'{mod_name}' would replace the UE4SS already installed; install it from its mod page, where Modrex can show you what that changes first"
+                ));
+            }
             return install_ue4ss_loader_from(
                 app,
                 cfg,
                 game_path,
                 zip_path,
-                Some(settings::LoaderInstall {
-                    remote_id: nexus_mod_id.to_string(),
-                    file_id: Some(i64::from(nexus_file_id)),
-                    version: mod_version.clone(),
-                    installed_at: Utc::now().to_rfc3339(),
-                }),
+                Some(
+                    LoaderPage {
+                        source: "nexus".to_string(),
+                        remote_id: nexus_mod_id.to_string(),
+                        file_id: Some(i64::from(nexus_file_id)),
+                        version: mod_version.clone(),
+                    }
+                    .recorded(),
+                ),
             )
             .await;
         }
@@ -876,31 +937,47 @@ fn push_installed_loaders(
     let launcher = game_settings(settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
     let recorded = game_settings(settings, cfg.game_id).map(|gs| &gs.loaders);
     for (game_id, spec, _) in crate::commands::loaders::scoped_bindings() {
-        if game_id != cfg.game_id {
+        if game_id != cfg.game_id || spec.id != "ue4ss" {
             continue;
         }
-        if !crate::commands::loaders::is_loader_installed(
-            spec,
-            cfg.game_id,
-            game_path,
-            launcher.as_deref(),
-        ) {
+        let found = crate::commands::ue4ss::presence(cfg.game_id, game_path, launcher.as_deref());
+        if !found.installed {
             continue;
         }
-        let record = recorded.and_then(|r| r.get(spec.id));
+        // The files outrank the record. A record says Modrex installed a release once; the
+        // bytes on disk say what is there now, and anything could have replaced them since.
+        // A record is used only for what the bytes cannot show, and only when the two agree
+        // on which release it is.
+        let record = recorded.and_then(|r| r.get(spec.id)).filter(|r| {
+            found
+                .modworkshop_id
+                .is_none_or(|id| r.source == "modworkshop" && r.remote_id == id.to_string())
+        });
+        let identity = match (found.modworkshop_id, record) {
+            (Some(id), _) => Some(("modworkshop".to_string(), id.to_string())),
+            (None, Some(r)) => Some((r.source.clone(), r.remote_id.clone())),
+            (None, None) => None,
+        };
         let entry = InstalledMod {
             uid: format!("loader:{}", spec.id),
             name: spec.id.to_uppercase(),
-            version: record.map(|r| r.version.clone()).unwrap_or_default(),
+            version: found
+                .version
+                .clone()
+                .or_else(|| record.map(|r| r.version.clone()))
+                .unwrap_or_default(),
             filename: spec.id.to_string(),
             enabled: true,
             location: Some(format!("loader:{}", spec.id)),
             installed_at: record.map(|r| r.installed_at.clone()).unwrap_or_default(),
             file_id: record.and_then(|r| r.file_id),
-            ..match record {
-                Some(r) => InstalledMod::from_catalog(
-                    "modworkshop",
-                    r.remote_id.clone(),
+            ..match identity {
+                // Identified from the proxy DLL's own bytes, or from the install that put it
+                // there. Either is real provenance; a loader nobody can attribute gets none
+                // invented for it.
+                Some((source, remote_id)) => InstalledMod::from_catalog(
+                    &source,
+                    remote_id,
                     IdentityEvidence::InstallProvenance,
                 ),
                 None => InstalledMod {
@@ -914,11 +991,93 @@ fn push_installed_loaders(
     }
 }
 
-/// Installs the UE4SS package and records which page it came from.
+/// Answers a UE4SS package: installs it outright when there is nothing to lose, and otherwise
+/// holds it and asks first.
 ///
-/// The installed files carry no identity: several pages distribute this loader, and one
-/// detected proxy DLL says nothing about which of them wrote it or what version it is.
-/// Provenance is absent only for a drop, which has no page behind it.
+/// A replacement removes the installed release's own files, and which files those are depends
+/// on which release is installed, so the user is shown them before it happens rather than told
+/// afterwards. A first install replaces nothing and has nothing to ask about.
+async fn answer_ue4ss_package(
+    app: &AppHandle,
+    cfg: &ModEngineConfig,
+    game_path: &str,
+    zip_path: PathBuf,
+    page: Option<LoaderPage>,
+    mod_name: String,
+) -> Result<InstallOutcome, String> {
+    let settings = read_settings(app);
+    let launcher = game_settings(&settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
+    if !crate::commands::ue4ss::is_installed(cfg.game_id, game_path, launcher.as_deref()) {
+        return install_ue4ss_loader_from(
+            app,
+            cfg,
+            game_path,
+            zip_path,
+            page.map(LoaderPage::recorded),
+        )
+        .await
+        .map(|()| InstallOutcome::Installed);
+    }
+    let plan =
+        crate::commands::ue4ss::plan_replacement(cfg.game_id, game_path, launcher.as_deref())?;
+    let archive_handle = staged_archives(app)
+        .register(
+            staging_tokens::StagedArchiveKind::Ue4ssLoader,
+            &zip_path,
+            cleanup::CleanupPlan::RemoveOwnedFile(zip_path.clone()),
+            Vec::new(),
+        )
+        .map_err(|()| "this UE4SS download could not be held for you to confirm".to_string())?;
+    Ok(InstallOutcome::NeedsLoaderConfirm(Ue4ssReplacePayload {
+        archive_handle,
+        mod_name,
+        page,
+        replaced: plan.replaced,
+        preserved: plan.preserved,
+    }))
+}
+
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmLoaderArgs {
+    pub archive_handle: String,
+    pub game_id: String,
+    pub game_path: String,
+    pub page: Option<LoaderPage>,
+}
+
+/// Carries out a replacement the user confirmed after being shown what it removes and keeps.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_confirmed_loader(
+    app: AppHandle,
+    args: ConfirmLoaderArgs,
+) -> Result<(), String> {
+    let cfg = engine_for_game(args.game_id.as_str())?;
+    // The handle, not the caller, decides which package is opened, and the borrow is held for
+    // the whole replacement so a concurrent discard cannot remove it mid-install.
+    let registry = staged_archives(&app);
+    let zip = registry
+        .borrow(
+            &args.archive_handle,
+            staging_tokens::StagedArchiveKind::Ue4ssLoader,
+        )
+        .ok_or("this UE4SS download is no longer available to install from")?;
+    let borrow = staging_tokens::BorrowGuard::new(registry, &args.archive_handle);
+    let result = replace_ue4ss_loader(
+        &app,
+        cfg,
+        &args.game_path,
+        &zip,
+        args.page.map(LoaderPage::recorded),
+    )
+    .await;
+    drop(borrow);
+    finish_with_archive(registry, &args.archive_handle).await;
+    result
+}
+
+/// Installs the UE4SS package, then removes the download it came from.
 async fn install_ue4ss_loader_from(
     app: &AppHandle,
     cfg: &ModEngineConfig,
@@ -926,21 +1085,51 @@ async fn install_ue4ss_loader_from(
     zip_path: PathBuf,
     provenance: Option<settings::LoaderInstall>,
 ) -> Result<(), String> {
+    let result = replace_ue4ss_loader(app, cfg, game_path, &zip_path, provenance).await;
+    cleanup::run(&cleanup::CleanupPlan::RemoveOwnedFile(zip_path)).await;
+    result
+}
+
+/// Installs the UE4SS package and records which page it came from.
+///
+/// The installed files carry no identity: several pages distribute this loader, and one
+/// detected proxy DLL says nothing about which of them wrote it or what version it is.
+/// Provenance is absent only for a drop, which has no page behind it.
+async fn replace_ue4ss_loader(
+    app: &AppHandle,
+    cfg: &ModEngineConfig,
+    game_path: &str,
+    zip_path: &std::path::Path,
+    provenance: Option<settings::LoaderInstall>,
+) -> Result<(), String> {
+    // Held for the whole replacement. The install commands take this around their own
+    // read-modify-write of state.json, but the loader is answered before that span, and two
+    // replacements running together would each set the other's files aside as the previous
+    // install.
+    let _guard = lock_game_state(app, cfg.game_id).await;
     let settings = read_settings(app);
     let launcher = game_settings(&settings, cfg.game_id).and_then(|gs| gs.launcher.clone());
     let result = crate::commands::ue4ss::install_loader(
         cfg.game_id,
         game_path,
         launcher.as_deref(),
-        &zip_path,
+        zip_path,
     );
-    cleanup::run(&cleanup::CleanupPlan::RemoveOwnedFile(zip_path)).await;
-    if result.is_ok() {
-        if let Some(record) = provenance {
-            settings::record_loader_install(app, cfg.game_id, "ue4ss", record);
+    // Recorded whenever the files actually changed, and always: a replacement whose source is
+    // unknown must clear the page the previous one claimed rather than leave it describing
+    // files it did not put there. A failure that changed nothing leaves the record alone,
+    // because the install it describes is still the one on disk.
+    match result {
+        Ok(()) => {
+            settings::record_loader_install(app, cfg.game_id, "ue4ss", provenance);
+            Ok(())
         }
+        Err(crate::commands::ue4ss::LoaderError::Installed(message)) => {
+            settings::record_loader_install(app, cfg.game_id, "ue4ss", provenance);
+            Err(message)
+        }
+        Err(unchanged) => Err(unchanged.message()),
     }
-    result
 }
 
 /// Reports a completed download to modworkshop. Best effort: a failure here never affects
@@ -1075,9 +1264,8 @@ pub async fn install_dropped_file(
         original_archive: zip_orig,
     } = match resolve_archive_download(temp.clone(), cfg, staged_archives(&app)) {
         Err(ResolveError::Ue4ssLoader(zip_path)) => {
-            return install_ue4ss_loader_from(&app, cfg, &game_path, zip_path, None)
-                .await
-                .map(|()| InstallOutcome::Installed);
+            return answer_ue4ss_package(&app, cfg, &game_path, zip_path, None, file_stem.clone())
+                .await;
         }
         // The picker / host-pack / CB-flat modals install directly from the temp copy (which they
         // delete afterwards), so forward the prompt enriched with a synthetic identity, mirroring

@@ -6633,3 +6633,53 @@ async fn a_refused_twin_survives_a_scan_persist_rescan_round_trip() {
         assert!(mods_dir.join(folder).join("Twin_P.ucas").is_file());
     }
 }
+
+#[test]
+fn a_loader_row_refuses_the_operations_it_cannot_perform() {
+    // Its uid is not in state.json, so these ops would otherwise find nothing and report
+    // success for work they never did. Guarded at the op rather than at the controls,
+    // because several renderer paths reach them.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
+    let sp = get_state_path(game, cfg);
+    save_state(&sp, &ModsState::default()).unwrap();
+
+    let removed = uninstall_mod_op(game, &sp, "loader:ue4ss", cfg).unwrap_err();
+    assert!(removed.contains("mod loader"), "unexpected: {removed}");
+    let disabled = disable_mod_op(game, &sp, "loader:ue4ss", cfg, None).unwrap_err();
+    assert!(disabled.contains("mod loader"), "unexpected: {disabled}");
+    let enabled = enable_mod_op(game, &sp, "loader:ue4ss", cfg, None).unwrap_err();
+    assert!(enabled.contains("mod loader"), "unexpected: {enabled}");
+}
+
+#[tokio::test]
+async fn a_loader_row_is_never_written_into_the_saved_mod_list() {
+    // It is built into the response, so a scan that saves must not persist it and a rescan
+    // must not then treat it as a mod that went missing.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+    let dir = tmp.path().join("PAYDAY3/Binaries/Win64");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dwmapi.dll"), b"a loader of some kind").unwrap();
+    own_write_family(tmp.path(), "001_ModA_P", b"REAL-A", b"AAAA");
+
+    let mut state = ModsState::default();
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    let saved = read_state(&sp).unwrap();
+    assert!(
+        saved.mods.iter().all(|m| !m.uid.starts_with("loader:")),
+        "the loader must not reach state.json"
+    );
+}

@@ -3,11 +3,13 @@ import { t } from './i18n'
 import type { ZipMultiPakPayload } from './components/ZipPickerModal'
 import type { HostPackPayload } from './components/HostPackModal'
 import type { CbFlatArchivePayload } from './components/CrimeBossFlatArchiveModal'
+import type { LoaderReplacePayload } from './components/Ue4ssReplaceModal'
 
 /**
- * An install command resolves to a typed InstallOutcome: 'installed', or one of four
+ * An install command resolves to a typed InstallOutcome: 'installed', or one of five
  * "needs a UI decision" prompts (multi-pak picker, host-pack choice, Crime Boss flat
- * archive confirm, unrecognized archive). Every install entry point must handle all four.
+ * archive confirm, UE4SS replacement confirm, unrecognized archive). Every install entry
+ * point must handle all five.
  *
  * This is the single dispatcher every caller routes through. The handlers object is
  * required in full, so forgetting a prompt is a compile error, and a new outcome
@@ -17,6 +19,7 @@ export interface InstallSentinelHandlers {
     onZipMultiPak: (payload: ZipMultiPakPayload) => void
     onHostModPack: (payload: HostPackPayload) => void
     onCbFlatArchive: (payload: CbFlatArchivePayload) => void
+    onLoaderReplace: (payload: LoaderReplacePayload) => void
     onUnrecognizedArchive: () => void
 }
 
@@ -52,6 +55,10 @@ export function handleInstallOutcome(
     }
     if ('needsHostChoice' in outcome) {
         handlers.onHostModPack(outcome.needsHostChoice as unknown as HostPackPayload)
+        return true
+    }
+    if ('needsLoaderConfirm' in outcome) {
+        handlers.onLoaderReplace(outcome.needsLoaderConfirm as unknown as LoaderReplacePayload)
         return true
     }
     handlers.onCbFlatArchive(outcome.needsCbFlatConfirm as unknown as CbFlatArchivePayload)

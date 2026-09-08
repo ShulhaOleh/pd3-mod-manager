@@ -16,6 +16,21 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
+/// A loader listed beside the mods rather than tracked among them. It is presence-detected
+/// from files it owns outside any mod folder, so none of the operations below can act on it,
+/// and every one of them refuses rather than reporting a success it did not perform. Checked
+/// on the uid because there is no state entry to look the rest up from.
+fn is_loader_uid(uid: &str) -> bool {
+    uid.starts_with("loader:")
+}
+
+fn loader_refusal(uid: &str) -> String {
+    format!(
+        "'{}' is a mod loader, not a mod: install the release you want over it instead.",
+        uid.trim_start_matches("loader:")
+    )
+}
+
 fn is_host_pack(m: &InstalledMod) -> bool {
     m.location
         .as_deref()
@@ -338,6 +353,9 @@ pub fn uninstall_mod_op(
     uid: &str,
     cfg: &ModEngineConfig,
 ) -> Result<(), String> {
+    if is_loader_uid(uid) {
+        return Err(loader_refusal(uid));
+    }
     let mut state = read_state(state_path).map_err(|e| e.to_string())?;
     let Some(m) = state.mods.iter().find(|m| m.uid == uid).cloned() else {
         return Ok(());
@@ -469,6 +487,9 @@ fn set_activation(
     launcher: Option<&str>,
     enable: bool,
 ) -> Result<(), String> {
+    if is_loader_uid(uid) {
+        return Err(loader_refusal(uid));
+    }
     let mut state = read_state(state_path).map_err(|e| e.to_string())?;
     let Some(m) = state
         .mods

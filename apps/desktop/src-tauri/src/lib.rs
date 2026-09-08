@@ -68,6 +68,7 @@ fn ipc_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::mods::install_file,
             commands::mods::install_dropped_file,
             commands::mods::identify_mod_via_nexus_content,
+            commands::mods::install_confirmed_loader,
             commands::mods::install_from_zip_entry,
             commands::mods::install_cb_flat_archive,
             commands::mods::install_host_pack,
@@ -91,6 +92,7 @@ fn ipc_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::loaders::list_loaders,
             commands::sources::list_sources,
             commands::loaders::check_loader,
+            commands::loaders::ue4ss_presence,
             commands::loaders::install_loader,
             // launchers & system
             commands::launchers::detected_installs,

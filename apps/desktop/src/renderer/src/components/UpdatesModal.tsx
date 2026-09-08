@@ -18,6 +18,8 @@ import { HostPackModal } from './HostPackModal'
 import type { HostPackPayload } from './HostPackModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from './CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import type { LoaderReplacePayload } from './Ue4ssReplaceModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { detailNavArgs } from '../hooks/installedUtils'
 import { nativeIdFor } from '../sources'
@@ -137,6 +139,7 @@ export function UpdatesModal({
     const [zipPickerData, setZipPickerData] = useState<ZipMultiPakPayload | null>(null)
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
 
     // Remaining mods for the in-progress batch update; lets processQueue resume after a
@@ -187,6 +190,10 @@ export function UpdatesModal({
         }
         if ('needsHostChoice' in outcome) {
             setHostPackData(outcome.needsHostChoice as unknown as HostPackPayload)
+            return 'manual'
+        }
+        if ('needsLoaderConfirm' in outcome) {
+            setLoaderReplaceData(outcome.needsLoaderConfirm as unknown as LoaderReplacePayload)
             return 'manual'
         }
         setCbFlatArchiveData(outcome.needsCbFlatConfirm as unknown as CbFlatArchivePayload)
@@ -362,6 +369,18 @@ export function UpdatesModal({
                     onRefreshInstalled={onRefreshInstalled}
                     onClose={() => {
                         setCbFlatArchiveData(null)
+                        resumeQueueIfBatch()
+                    }}
+                />
+            )}
+            {loaderReplaceData && gamePath && (
+                <Ue4ssReplaceModal
+                    payload={loaderReplaceData}
+                    gameId={gameId}
+                    gamePath={gamePath}
+                    onRefreshInstalled={onRefreshInstalled}
+                    onClose={() => {
+                        setLoaderReplaceData(null)
                         resumeQueueIfBatch()
                     }}
                 />

@@ -59,6 +59,8 @@ import type { HostPackPayload } from './HostPackModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from './CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import type { LoaderReplacePayload } from './Ue4ssReplaceModal'
 import { CrimeBossInstallTargetModal } from './CrimeBossInstallTargetModal'
 import { useCrimeBossInstallTarget } from '../hooks/useCrimeBossInstallTarget'
 import { isUnsupportedFormat } from '../formatCheck'
@@ -289,6 +291,7 @@ export function ModDetailPage({
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
     const crimeBossInstallTarget = useCrimeBossInstallTarget(
         activeGame,
         gamePath,
@@ -502,6 +505,7 @@ export function ModDetailPage({
                         onZipMultiPak: setZipPickerData,
                         onHostModPack: setHostPackData,
                         onCbFlatArchive: setCbFlatArchiveData,
+                        onLoaderReplace: setLoaderReplaceData,
                         onUnrecognizedArchive: () => setUnrecognizedModId(mod.id),
                     })
                 ) {
@@ -692,6 +696,15 @@ export function ModDetailPage({
                     gamePath={gamePath}
                     onRefreshInstalled={onRefreshInstalled}
                     onClose={() => setCbFlatArchiveData(null)}
+                />
+            )}
+            {loaderReplaceData && gamePath && (
+                <Ue4ssReplaceModal
+                    payload={loaderReplaceData}
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={onRefreshInstalled}
+                    onClose={() => setLoaderReplaceData(null)}
                 />
             )}
             {unrecognizedModId !== null && (

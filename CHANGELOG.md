@@ -30,6 +30,9 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Fixed mod folders and load order being lost when Modrex could not read its saved mod list.
 - Fixed dragging a mod's archive onto Modrex moving that mod out of the folder it was filed in, unlike installing it from its page.
 - Fixed uninstalling a PAYDAY 3 mod deleting another mod's files.
+- Installing UE4SS now replaces an older one instead of leaving both hooked into the game, keeping your Lua mods and the choices you made in the loader's own list. Modrex names the release you have where it can recognize it, and says so plainly where it cannot.
+- Installing a UE4SS release over one you already have now asks first, listing what it removes and what it keeps.
+- Fixed your own Lua mods being left in the old release's folder after a UE4SS update that moves where the loader reads them.
 
 ## 0.14.0
 

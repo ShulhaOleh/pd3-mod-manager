@@ -81,6 +81,11 @@ pub struct GameSettings {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LoaderInstall {
+    /// Which catalogue the ids below belong to. ModWorkshop and Nexus number their mods
+    /// independently, so a bare id says nothing without it.
+    #[serde(default = "default_source")]
+    #[specta(type = String)]
+    pub source: String,
     pub remote_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_id: Option<i64>,
@@ -94,6 +99,11 @@ pub struct LoaderInstall {
 
 fn default_crimeboss_mode() -> String {
     "auto".to_string()
+}
+
+/// Records written before a loader carried its source came only from ModWorkshop.
+fn default_source() -> String {
+    "modworkshop".to_string()
 }
 
 impl Default for GameSettings {
@@ -554,23 +564,32 @@ pub fn dismiss_deps_warning(app: AppHandle, mod_id: i32) {
     });
 }
 
-#[cfg(test)]
-#[path = "settings_tests.rs"]
-mod tests;
-
-/// Records which mod page installed a loader for a game.
+/// Records which mod page installed a loader for a game, or forgets the previous one when the
+/// install had no page behind it.
+///
+/// A dropped archive replaces the files without saying where they came from, so keeping the
+/// previous record would attribute someone else's release to a page it never came from. Only
+/// ever called once the files are in place.
 pub fn record_loader_install(
     app: &AppHandle,
     game_id: &str,
     loader_id: &str,
-    record: LoaderInstall,
+    record: Option<LoaderInstall>,
 ) {
     update_settings(app, |s| {
-        s.games
+        let loaders = &mut s
+            .games
             .get_or_insert_with(HashMap::new)
             .entry(game_id.to_string())
             .or_default()
-            .loaders
-            .insert(loader_id.to_string(), record);
+            .loaders;
+        match record {
+            Some(record) => loaders.insert(loader_id.to_string(), record),
+            None => loaders.remove(loader_id),
+        };
     });
 }
+
+#[cfg(test)]
+#[path = "settings_tests.rs"]
+mod tests;

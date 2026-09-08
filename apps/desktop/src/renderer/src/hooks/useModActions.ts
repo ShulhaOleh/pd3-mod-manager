@@ -4,6 +4,7 @@ import type { ZipMultiPakPayload } from '../components/ZipPickerModal'
 import { installZipPickerEntries } from '../components/ZipPickerModal'
 import type { HostPackPayload } from '../components/HostPackModal'
 import type { CbFlatArchivePayload } from '../components/CrimeBossFlatArchiveModal'
+import type { LoaderReplacePayload } from '../components/Ue4ssReplaceModal'
 import { handleInstallOutcome } from '../installSentinels'
 import { entryFilename, stripPriorityPrefix } from './installedUtils'
 import { t } from '../i18n'
@@ -28,6 +29,8 @@ export interface ModActions {
     clearUnrecognizedModId: () => void
     cbFlatArchiveData: CbFlatArchivePayload | null
     clearCbFlatArchiveData: () => void
+    loaderReplaceData: LoaderReplacePayload | null
+    clearLoaderReplaceData: () => void
     movingCrimeBossTarget: InstalledMod | null
     crimeBossMoveBusy: boolean
     crimeBossMoveError: string | null
@@ -61,6 +64,7 @@ export function useModActions(
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
     const [movingCrimeBossTarget, setMovingCrimeBossTarget] = useState<InstalledMod | null>(null)
     const [crimeBossMoveBusy, setCrimeBossMoveBusy] = useState(false)
     const [crimeBossMoveError, setCrimeBossMoveError] = useState<string | null>(null)
@@ -226,6 +230,7 @@ export function useModActions(
                     onZipMultiPak: setZipPickerData, // unreachable: the needsPicker branch above
                     onHostModPack: setHostPackData,
                     onCbFlatArchive: setCbFlatArchiveData,
+                    onLoaderReplace: setLoaderReplaceData,
                     onUnrecognizedArchive: () => setUnrecognizedModId(remoteId),
                 })
             }
@@ -287,6 +292,8 @@ export function useModActions(
         clearUnrecognizedModId: () => setUnrecognizedModId(null),
         cbFlatArchiveData,
         clearCbFlatArchiveData: () => setCbFlatArchiveData(null),
+        loaderReplaceData,
+        clearLoaderReplaceData: () => setLoaderReplaceData(null),
         movingCrimeBossTarget,
         crimeBossMoveBusy,
         crimeBossMoveError,
