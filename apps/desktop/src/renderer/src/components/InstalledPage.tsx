@@ -19,6 +19,7 @@ import { HostPackModal } from './HostPackModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import { Ue4ssRemoveModal } from './Ue4ssRemoveModal'
 import { MoveCrimeBossTargetModal } from './MoveCrimeBossTargetModal'
 import { UpdatesModal } from './UpdatesModal'
 import { HealthCheckModal } from './HealthCheckModal'
@@ -164,6 +165,8 @@ export function InstalledPage({
         clearCbFlatArchiveData,
         loaderReplaceData,
         clearLoaderReplaceData,
+        removingLoader,
+        clearRemovingLoader,
         movingCrimeBossTarget,
         crimeBossMoveBusy,
         crimeBossMoveError,
@@ -323,6 +326,14 @@ export function InstalledPage({
                         gamePath={gamePath}
                         onRefreshInstalled={onRefreshInstalled}
                         onClose={clearLoaderReplaceData}
+                    />
+                )}
+                {removingLoader && gamePath && (
+                    <Ue4ssRemoveModal
+                        gameId={activeGame}
+                        gamePath={gamePath}
+                        onRefreshInstalled={onRefreshInstalled}
+                        onClose={clearRemovingLoader}
                     />
                 )}
                 {unrecognizedModId !== null && (

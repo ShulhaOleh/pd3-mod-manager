@@ -671,6 +671,45 @@ pub(crate) fn install_loader(
     )))
 }
 
+/// Removes the installed release, keeping the user's own mods and their entries in mods.txt.
+///
+/// Only what a release is known to own goes, so a mod folder the user added stays where it is
+/// and an overlay sharing the directory is never touched. Nothing is set aside first: there is
+/// no new install to roll back to, and a partial removal reports which files are still there
+/// rather than claiming the loader is gone.
+pub(crate) fn uninstall(
+    game_id: &str,
+    game_path: &str,
+    launcher: Option<&str>,
+) -> Result<(), String> {
+    let (dest, proxies) = resolve_build(game_id, game_path, launcher)?;
+    let owned = owned_paths(&dest, proxies);
+    if owned.is_empty() {
+        return Err(
+            "Modrex could not tell which files here are UE4SS's, so it will not delete any of them. Remove it by hand from the game's Win64 folder."
+                .to_string(),
+        );
+    }
+    let failed: Vec<String> = owned
+        .iter()
+        .filter_map(|path| {
+            let removed = if path.is_dir() {
+                std::fs::remove_dir_all(path)
+            } else {
+                std::fs::remove_file(path)
+            };
+            removed.err().map(|e| format!("{} ({e})", path.display()))
+        })
+        .collect();
+    if failed.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "UE4SS was partly removed. These are still there, so check them before installing another: {}",
+        failed.join(", ")
+    ))
+}
+
 /// Moves the user's own mod folders into the incoming release's Mods folder, naming the ones
 /// that could not be moved.
 ///

@@ -20,7 +20,11 @@ interface Props {
     onClose: () => void
 }
 
-function FileList({ heading, paths }: { heading: string; paths: string[] }) {
+/**
+ * A short, scrollable list of paths, shared with the removal dialog so both name what they
+ * touch the same way.
+ */
+export function FileList({ heading, paths }: { heading: string; paths: string[] }) {
     return (
         <div className="flex flex-col gap-1.5">
             <div className="text-xs font-medium uppercase tracking-wide text-text-muted">

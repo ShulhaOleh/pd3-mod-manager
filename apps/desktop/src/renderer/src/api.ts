@@ -6,6 +6,7 @@ import {
     type InstallOutcome,
     type LoaderPage,
     type LoaderPresence,
+    type ReplacementPlan,
 } from '../../shared/bindings'
 import type {
     DetectedInstall,
@@ -17,7 +18,7 @@ import type {
     SisrLaunchIssue,
     SisrStatus,
 } from '../../shared/bindings'
-export type { LoaderPage, LoaderPresence }
+export type { LoaderPage, LoaderPresence, ReplacementPlan }
 export type {
     InstallOutcome,
     DetectedInstall,
@@ -557,6 +558,12 @@ export const api = {
     },
     ue4ssPresence(gameId: string, gamePath: string): Promise<LoaderPresence> {
         return commands.ue4ssPresence(gameId, gamePath)
+    },
+    ue4ssPlan(gameId: string, gamePath: string): Promise<ReplacementPlan> {
+        return commands.ue4ssPlan(gameId, gamePath)
+    },
+    async uninstallUe4ss(gameId: string, gamePath: string): Promise<void> {
+        await commands.uninstallUe4ss(gameId, gamePath)
     },
     async installLoader(loaderId: string, gamePath: string): Promise<void> {
         await commands.installLoader(loaderId, gamePath)

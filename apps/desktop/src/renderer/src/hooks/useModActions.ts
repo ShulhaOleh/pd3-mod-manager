@@ -5,6 +5,7 @@ import { installZipPickerEntries } from '../components/ZipPickerModal'
 import type { HostPackPayload } from '../components/HostPackModal'
 import type { CbFlatArchivePayload } from '../components/CrimeBossFlatArchiveModal'
 import type { LoaderReplacePayload } from '../components/Ue4ssReplaceModal'
+import { isLoader } from './installedUtils'
 import { handleInstallOutcome } from '../installSentinels'
 import { entryFilename, stripPriorityPrefix } from './installedUtils'
 import { t } from '../i18n'
@@ -31,6 +32,8 @@ export interface ModActions {
     clearCbFlatArchiveData: () => void
     loaderReplaceData: LoaderReplacePayload | null
     clearLoaderReplaceData: () => void
+    removingLoader: boolean
+    clearRemovingLoader: () => void
     movingCrimeBossTarget: InstalledMod | null
     crimeBossMoveBusy: boolean
     crimeBossMoveError: string | null
@@ -65,6 +68,7 @@ export function useModActions(
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
     const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
+    const [removingLoader, setRemovingLoader] = useState(false)
     const [movingCrimeBossTarget, setMovingCrimeBossTarget] = useState<InstalledMod | null>(null)
     const [crimeBossMoveBusy, setCrimeBossMoveBusy] = useState(false)
     const [crimeBossMoveError, setCrimeBossMoveError] = useState<string | null>(null)
@@ -111,6 +115,13 @@ export function useModActions(
     }
 
     async function handleUninstall(mods: InstalledMod[]) {
+        // A loader is detected rather than tracked, so no mod record names its files and
+        // uninstall_mod has nothing to act on. Removing it is its own operation, and it
+        // shows what it would delete first.
+        if (mods.every(isLoader)) {
+            setRemovingLoader(true)
+            return
+        }
         await runOnEach(mods, (m) => api.uninstallMod(m.uid, gamePath!, activeGame))
     }
 
@@ -294,6 +305,8 @@ export function useModActions(
         clearCbFlatArchiveData: () => setCbFlatArchiveData(null),
         loaderReplaceData,
         clearLoaderReplaceData: () => setLoaderReplaceData(null),
+        removingLoader,
+        clearRemovingLoader: () => setRemovingLoader(false),
         movingCrimeBossTarget,
         crimeBossMoveBusy,
         crimeBossMoveError,

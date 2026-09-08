@@ -147,6 +147,18 @@ export const commands = {
 	 *  distributes it", and must not be shown as either.
 	 */
 	ue4ssPresence: (gameId: string, gamePath: string) => __TAURI_INVOKE<LoaderPresence>("ue4ss_presence", { gameId, gamePath }),
+	/**
+	 *  What removing or replacing the installed UE4SS would change, for the confirmation shown
+	 *  before either happens.
+	 */
+	ue4ssPlan: (gameId: string, gamePath: string) => __TAURI_INVOKE<ReplacementPlan>("ue4ss_plan", { gameId, gamePath }),
+	/**
+	 *  Removes the installed UE4SS and forgets which page it came from.
+	 * 
+	 *  The record describes an install that is no longer there, so it goes with the files. A
+	 *  removal that only partly succeeded keeps it, because the loader is still installed.
+	 */
+	uninstallUe4ss: (gameId: string, gamePath: string) => __TAURI_INVOKE<null>("uninstall_ue4ss", { gameId, gamePath }),
 	installLoader: (loaderId: string, gamePath: string) => __TAURI_INVOKE<null>("install_loader", { loaderId, gamePath }),
 	detectedInstalls: (gameId: string) => __TAURI_INVOKE<DetectedInstall[]>("detected_installs", { gameId }),
 	/**
@@ -939,6 +951,23 @@ export type PageMeta = {
 
 export type PakAsset = {
 	path: string,
+};
+
+/**
+ *  What installing a UE4SS release over the current one would change.
+ * 
+ *  Conflicts are not here: whether a package would write over something unattributable can
+ *  only be known once that package is in hand, and the replacement refuses by naming them.
+ *  This is what can be shown before the user commits to the download.
+ */
+export type ReplacementPlan = {
+	/**  Loader files the replacement removes. */
+	replaced: string[],
+	/**
+	 *  Mod folders the user added, by name. They are kept, and moved into the incoming
+	 *  release's Mods folder when its layout puts that somewhere else.
+	 */
+	preserved: string[],
 };
 
 export type SisrLaunchIssue = "unsupported" | "notInstalled" | "setupRequired" | "startFailed" | "startUnconfirmed";

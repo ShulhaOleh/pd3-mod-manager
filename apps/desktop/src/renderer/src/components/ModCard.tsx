@@ -198,25 +198,25 @@ export function ModCard({
                                 </button>
                             </>
                         )}
+                        {/* A loader has no enabled state to flip: it is a hook next to the
+                            game, present or not. Removing it is still the user's to do. */}
                         {!isLoader(installed) && (
-                            <>
-                                <Toggle
-                                    checked={installed.enabled}
-                                    onChange={(v) => (v ? onEnable() : onDisable())}
-                                    disabled={!canAct || !!installed.missing}
-                                />
-                                <Tooltip content={t('common.remove')}>
-                                    <Button
-                                        variant="danger"
-                                        size="icon-md"
-                                        disabled={!canAct}
-                                        onClick={onUninstall}
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                </Tooltip>
-                            </>
+                            <Toggle
+                                checked={installed.enabled}
+                                onChange={(v) => (v ? onEnable() : onDisable())}
+                                disabled={!canAct || !!installed.missing}
+                            />
                         )}
+                        <Tooltip content={t('common.remove')}>
+                            <Button
+                                variant="danger"
+                                size="icon-md"
+                                disabled={!canAct}
+                                onClick={onUninstall}
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                        </Tooltip>
                     </div>
                 )}
             </div>

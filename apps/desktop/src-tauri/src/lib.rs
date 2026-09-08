@@ -93,6 +93,8 @@ fn ipc_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::sources::list_sources,
             commands::loaders::check_loader,
             commands::loaders::ue4ss_presence,
+            commands::loaders::ue4ss_plan,
+            commands::loaders::uninstall_ue4ss,
             commands::loaders::install_loader,
             // launchers & system
             commands::launchers::detected_installs,

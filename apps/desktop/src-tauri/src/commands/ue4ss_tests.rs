@@ -740,3 +740,59 @@ fn a_mod_already_in_the_incoming_layout_is_not_moved_onto_itself() {
         "nothing was moved out to the other layout"
     );
 }
+
+// ── Removal ────────────────────────────────────────────────────────────────────
+
+#[test]
+fn removing_the_loader_keeps_the_mods_the_user_added() {
+    let tmp = TempDir::new().unwrap();
+    install_fixture(&tmp, Ue4ssFixture::Ue4);
+    let dir = ue4ss_dir(&tmp);
+    write_submod_at(&dir.join("Mods"), "CoolMod", b"-- the user's own");
+
+    uninstall("pd3", &path_str(&tmp), Some("steam")).unwrap();
+
+    assert!(!dir.join("dxgi.dll").exists(), "the proxy is gone");
+    assert!(!dir.join("UE4SS.dll").exists(), "and so is the engine");
+    assert!(
+        !dir.join("Mods/Keybinds").exists(),
+        "a sub-mod the release shipped goes with it"
+    );
+    assert_eq!(
+        fs::read(dir.join("Mods/CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- the user's own",
+        "a mod the user added is not the loader's to delete"
+    );
+}
+
+#[test]
+fn removing_a_loader_nothing_can_attribute_refuses_rather_than_guessing() {
+    // Only a proxy-named DLL is here, with no engine beside it to say it is UE4SS's. Deleting
+    // it on the name alone would delete ReShade.
+    let tmp = TempDir::new().unwrap();
+    let dir = ue4ss_dir(&tmp);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dxgi.dll"), b"ReShade, not UE4SS").unwrap();
+
+    let err = uninstall("pd3", &path_str(&tmp), Some("steam")).unwrap_err();
+
+    assert!(err.contains("will not delete"), "unexpected: {err}");
+    assert_eq!(
+        fs::read(dir.join("dxgi.dll")).unwrap(),
+        b"ReShade, not UE4SS"
+    );
+}
+
+#[test]
+fn removing_an_unverified_storefront_refuses_rather_than_guessing_a_path() {
+    let tmp = TempDir::new().unwrap();
+    install_fixture(&tmp, Ue4ssFixture::Ue4);
+
+    let err = uninstall("pd3", &path_str(&tmp), Some("xbox")).unwrap_err();
+
+    assert!(err.contains("isn't supported yet"), "unexpected: {err}");
+    assert!(
+        ue4ss_dir(&tmp).join("dxgi.dll").is_file(),
+        "nothing was removed on a guessed path"
+    );
+}

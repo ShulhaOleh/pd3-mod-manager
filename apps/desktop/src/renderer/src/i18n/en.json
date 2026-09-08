@@ -372,6 +372,14 @@
         "replace": "Replace",
         "replacing": "Replacing..."
     },
+    "ue4ssRemove": {
+        "title": "Remove UE4SS?",
+        "body": "UE4SS is what loads Lua mods, so removing it stops them running until you install it again. Only the files it installed are deleted.",
+        "removed": "Removed",
+        "kept": "Kept",
+        "nothingOfYours": "You have no mods of your own in the loader's Mods folder.",
+        "removing": "Removing..."
+    },
     "depsWarning": {
         "title": "Missing required dependencies",
         "body": "This mod requires the following mods to be installed:",
