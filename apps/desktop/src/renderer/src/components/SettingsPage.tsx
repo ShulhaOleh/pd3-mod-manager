@@ -592,11 +592,20 @@ export function SettingsPage({
                                         )}
 
                                         <Section title={t('settings.launchOptions.title')}>
-                                            <p className="text-xs text-text-subtle">
-                                                {launcher === 'xbox'
-                                                    ? t('settings.launchOptions.xboxNote')
-                                                    : t('settings.launchOptions.description')}
-                                            </p>
+                                            {/* Only a game that actually needs an argument
+                                                gets a line here. Saying "most mods need none"
+                                                to everyone else is a sentence that tells the
+                                                reader nothing they cannot see from an empty
+                                                field. */}
+                                            {(launcher === 'xbox' || requiredLaunchFlag) && (
+                                                <p className="text-xs text-text-subtle">
+                                                    {launcher === 'xbox'
+                                                        ? t('settings.launchOptions.xboxNote')
+                                                        : t('settings.launchOptions.description', {
+                                                              flag: requiredLaunchFlag!,
+                                                          })}
+                                                </p>
+                                            )}
                                             <input
                                                 type="text"
                                                 value={launchOptions}

@@ -439,7 +439,7 @@
         },
         "launchOptions": {
             "title": "Launch Options",
-            "description": "Extra arguments passed to the game on launch. Most mods need none.",
+            "description": "{flag} is needed for most of this game's mods to load correctly.",
             "xboxNote": "Launch options are not supported on Microsoft Store."
         },
         "crashReporter": {
