@@ -283,8 +283,15 @@ export function ModDetailPage({
     const [showDepsWarning, setShowDepsWarning] = useState(false)
     // Presence state per loader id, from the registry. SuperBLT keys off 'superblt'
     // like the rest even though it has no modworkshop page.
-    const { loaderState, setLoaderState, setLoaderFlag, installLoader, loaderModIds } =
-        useLoaderState(activeGame, gamePath)
+    const {
+        loaderState,
+        setLoaderState,
+        setLoaderFlag,
+        installLoader,
+        loaderModIds,
+        refreshUe4ssPage,
+        loaderPageInstalled,
+    } = useLoaderState(activeGame, gamePath)
     const [showFileSelect, setShowFileSelect] = useState(false)
     const [showHeaderFormatWarning, setShowHeaderFormatWarning] = useState(false)
     const [zipPickerData, setZipPickerData] = useState<ZipMultiPakPayload | null>(null)
@@ -316,7 +323,9 @@ export function ModDetailPage({
     // Nexus mod id lives in a different id space and must never be looked up here.
     const thisLoader = isNexus ? undefined : loaderForModId(activeGame, modId)
     const isLoaderMod = thisLoader !== undefined
-    const loaderModInstalled = thisLoader ? (loaderState[thisLoader.id] ?? null) : null
+    // The page's own question, not "is a loader present": several pages distribute UE4SS, and
+    // the general answer leaves every one of them claiming to be installed.
+    const loaderModInstalled = thisLoader ? loaderPageInstalled(modId) : null
 
     // Full-size banner via the disk cache. The CDN sends no cache headers, so a
     // direct URL costs a download or revalidation round-trip on every page visit.
@@ -619,6 +628,11 @@ export function ModDetailPage({
             cancelled = true
         }
     }, [gamePath, loaderCheckKey, activeGame, setLoaderFlag])
+
+    // Which UE4SS release is on disk, needed only when this page is one that distributes it.
+    useEffect(() => {
+        if (thisLoader?.id === 'ue4ss') void refreshUe4ssPage()
+    }, [thisLoader?.id, refreshUe4ssPage])
 
     const showChangelogTab = !!detail?.changelog
     const showLicenseTab = !!detail?.license

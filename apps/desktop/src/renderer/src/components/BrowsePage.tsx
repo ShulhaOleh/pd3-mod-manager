@@ -279,12 +279,15 @@ export function BrowsePage({
     const scrollRef = useRef<HTMLDivElement>(null)
     const fetchIdRef = useRef(0)
     const [lastMeta, setLastMeta] = useState<{ last_page: number; total: number } | null>(null)
-    const { loaderState, setLoaderFlag, refreshLoader, installLoader, loaderModIds } =
-        useLoaderState(activeGame, gamePath)
-    // Which UE4SS page the installed files are attributable to. Several pages distribute the
-    // same loader, so one presence flag cannot say which of them is on disk; null means
-    // present but unattributable, and no page may claim it then.
-    const [ue4ssPageId, setUe4ssPageId] = useState<number | null>(null)
+    const {
+        loaderState,
+        setLoaderFlag,
+        refreshLoader,
+        installLoader,
+        loaderModIds,
+        ue4ssPageId,
+        refreshUe4ssPage,
+    } = useLoaderState(activeGame, gamePath)
 
     useEffect(() => {
         return api.onDownloadProgress(({ download_id, downloaded, total }) => {
@@ -320,9 +323,7 @@ export function BrowsePage({
                 if (!cancelled) setLoaderFlag(loader.id, v)
             })
         }
-        api.ue4ssPresence(activeGame, gamePath).then((p) => {
-            if (!cancelled) setUe4ssPageId(p.modworkshopId ?? null)
-        })
+        void refreshUe4ssPage()
         return () => {
             cancelled = true
         }
@@ -595,13 +596,10 @@ export function BrowsePage({
     // A replacement changes which page the installed files came from, so the card that claims
     // it has to be re-read rather than assumed to be the one just installed.
     const refreshAfterLoaderReplace = useCallback(async () => {
-        if (gamePath) {
-            const presence = await api.ue4ssPresence(activeGame, gamePath)
-            setUe4ssPageId(presence.modworkshopId ?? null)
-            setLoaderFlag('ue4ss', presence.installed)
-        }
+        await refreshUe4ssPage()
+        await refreshLoader('ue4ss')
         await onRefreshInstalled()
-    }, [gamePath, activeGame, setLoaderFlag, onRefreshInstalled])
+    }, [refreshUe4ssPage, refreshLoader, onRefreshInstalled])
 
     const handleUninstall = useCallback(
         async (modId: number) => {
