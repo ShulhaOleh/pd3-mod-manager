@@ -166,12 +166,19 @@ is declared because it does not follow a pattern: pak targets must place it outs
 unit = {
     kind = "file",
     disabled_suffix = ".disabled",
+    filename = "archive",
     family = {
         extension = "pak",
         companions = ["ucas", "utoc"],
     },
 }
 ```
+
+`filename` says what an installed file is named after: `mod_name`, the default, uses
+the mod's own title, and `archive` keeps the name the file had in the archive it came
+from. Use `archive` where the engine reads the filename itself, as Unreal does, since a
+container renamed away from the `_P` its author gave it loses its patch priority. A
+bare download carries no archive name and falls back to the mod title either way.
 
 `kind = "directory"` means one mod is one folder, and requires a `discovery` policy.
 `ignore_preset` names a host list of folders that are never mods. `contains` is set when
@@ -290,9 +297,6 @@ targets = [
             kind = "directory",
             ignore_preset = "diesel_infra",
 
-            # RAID-SuperBLT and RAIDWW2-BeardLib load script mods and asset override packs from
-            # this one folder, and the game's assets/mod_overrides mount is gone. Asset packs
-            # carry no supermod.xml or mod.xml, so no marker file could recognise them.
             discovery = {
                 policy = "all_directories",
             },
@@ -372,9 +376,6 @@ targets = [
             kind = "directory",
             ignore_preset = "diesel_infra",
 
-            # base.lua is DAHM's framework entry point, shared by its own bundled modules and
-            # by genuinely installable sub-mods, so an index match is the only reliable way to
-            # tell them apart.
             discovery = {
                 policy = "markers",
                 markers = [

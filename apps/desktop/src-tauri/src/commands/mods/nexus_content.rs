@@ -132,6 +132,7 @@ mod tests {
             extension: "pak",
             disabled_suffix: ".disabled",
             priority_prefix: true,
+            keeps_archive_filename: false,
         }
     }
 

@@ -6,6 +6,9 @@ pub enum ModUnit {
         extension: &'static str,
         disabled_suffix: &'static str,
         priority_prefix: bool,
+        /// The installed file keeps the name it had in its archive, because the engine reads
+        /// that name and renaming changes what the file means.
+        keeps_archive_filename: bool,
     },
     Directory {
         /// Markers used to recognise mod directories inside a ZIP during install classification.
@@ -72,6 +75,18 @@ impl ScanTarget {
         match &self.unit {
             ModUnit::File { extension, .. } => Some(extension),
             ModUnit::Directory { .. } => self.contained_extension,
+        }
+    }
+
+    /// Whether an installed file keeps the name it had in its archive. False for a directory
+    /// unit, whose folder name comes from the archive already.
+    pub fn keeps_archive_filename(&self) -> bool {
+        match &self.unit {
+            ModUnit::File {
+                keeps_archive_filename,
+                ..
+            } => *keeps_archive_filename,
+            ModUnit::Directory { .. } => false,
         }
     }
 

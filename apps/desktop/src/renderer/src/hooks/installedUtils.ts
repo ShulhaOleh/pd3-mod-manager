@@ -350,3 +350,12 @@ export function groupChildren(entries: ChildEntry[]): ChildGroup[] {
     if (run.length > 0) groups.push({ type: 'root-group', groups: run })
     return groups
 }
+
+/**
+ * A mod loader listed beside the mods it makes possible. It is detected from the files it
+ * leaves next to the game rather than tracked, so it can be shown and updated but never
+ * enabled, reordered or removed from here.
+ */
+export function isLoader(ins: Pick<InstalledMod, 'location'> | null | undefined): boolean {
+    return ins?.location?.startsWith('loader:') ?? false
+}

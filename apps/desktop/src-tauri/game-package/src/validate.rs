@@ -119,6 +119,7 @@ fn check_target(target: &Target) -> Result<(), String> {
         Unit::File {
             family,
             disabled_suffix,
+            filename: _,
         } => {
             check_family(family)?;
             if disabled_suffix.is_empty() {

@@ -43,6 +43,34 @@ export function buildLoaderModIds(
 }
 
 /**
+ * Whether the release a given mod page distributes is the one installed.
+ *
+ * Deliberately not the same question as buildLoaderModIds, which asks whether any loader is
+ * present. UE4SS ships from several pages, and answering the page's own question with the
+ * general one leaves every page but the installed one claiming to be installed, so there is
+ * no way to switch between them. A loader nothing can attribute reads as not installed from
+ * every page, which is what makes it replaceable rather than stuck.
+ *
+ * Dependency rows keep asking the general question: a Lua mod needs a loader, not a
+ * particular page's build of one.
+ *
+ * ue4ssPageId is the page the installed files are attributable to, or null when nothing can
+ * attribute them. It is meaningless for every other loader, each of which has one page.
+ */
+export function loaderPageInstalled(
+    gameId: string,
+    modId: number,
+    state: LoaderState,
+    ue4ssPageId: number | null
+): boolean | null {
+    const loader = loaderForModId(gameId, modId)
+    if (!loader) return null
+    const present = state[loader.id] ?? null
+    if (loader.id !== 'ue4ss' || present !== true) return present
+    return ue4ssPageId === modId
+}
+
+/**
  * Checks every loader for a game whose state is still unknown and that the mod actually
  * depends on, so a dep warning is decided from definitive values. neededIds are the
  * dependency mod ids in play; a loader is only probed when one of its ids appears there.

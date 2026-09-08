@@ -39,7 +39,6 @@ install = {
 }
 
 loaders = [
-    # SuperBLT is hosted on its own site and has no mod page, so the renderer matches it by name.
     {
         kind = "superblt",
     },

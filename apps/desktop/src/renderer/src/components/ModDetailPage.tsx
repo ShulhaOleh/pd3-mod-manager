@@ -59,6 +59,9 @@ import type { HostPackPayload } from './HostPackModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from './CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import { Ue4ssRemoveModal } from './Ue4ssRemoveModal'
+import type { LoaderReplacePayload } from './Ue4ssReplaceModal'
 import { CrimeBossInstallTargetModal } from './CrimeBossInstallTargetModal'
 import { useCrimeBossInstallTarget } from '../hooks/useCrimeBossInstallTarget'
 import { isUnsupportedFormat } from '../formatCheck'
@@ -281,14 +284,24 @@ export function ModDetailPage({
     const [showDepsWarning, setShowDepsWarning] = useState(false)
     // Presence state per loader id, from the registry. SuperBLT keys off 'superblt'
     // like the rest even though it has no modworkshop page.
-    const { loaderState, setLoaderState, setLoaderFlag, installLoader, loaderModIds } =
-        useLoaderState(activeGame, gamePath)
+    const {
+        loaderState,
+        setLoaderState,
+        setLoaderFlag,
+        installLoader,
+        loaderModIds,
+        refreshLoader,
+        refreshUe4ssPage,
+        loaderPageInstalled,
+    } = useLoaderState(activeGame, gamePath)
     const [showFileSelect, setShowFileSelect] = useState(false)
     const [showHeaderFormatWarning, setShowHeaderFormatWarning] = useState(false)
     const [zipPickerData, setZipPickerData] = useState<ZipMultiPakPayload | null>(null)
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
+    const [removingLoader, setRemovingLoader] = useState(false)
     const crimeBossInstallTarget = useCrimeBossInstallTarget(
         activeGame,
         gamePath,
@@ -313,7 +326,9 @@ export function ModDetailPage({
     // Nexus mod id lives in a different id space and must never be looked up here.
     const thisLoader = isNexus ? undefined : loaderForModId(activeGame, modId)
     const isLoaderMod = thisLoader !== undefined
-    const loaderModInstalled = thisLoader ? (loaderState[thisLoader.id] ?? null) : null
+    // The page's own question, not "is a loader present": several pages distribute UE4SS, and
+    // the general answer leaves every one of them claiming to be installed.
+    const loaderModInstalled = thisLoader ? loaderPageInstalled(modId) : null
 
     // Full-size banner via the disk cache. The CDN sends no cache headers, so a
     // direct URL costs a download or revalidation round-trip on every page visit.
@@ -502,6 +517,7 @@ export function ModDetailPage({
                         onZipMultiPak: setZipPickerData,
                         onHostModPack: setHostPackData,
                         onCbFlatArchive: setCbFlatArchiveData,
+                        onLoaderReplace: setLoaderReplaceData,
                         onUnrecognizedArchive: () => setUnrecognizedModId(mod.id),
                     })
                 ) {
@@ -616,6 +632,11 @@ export function ModDetailPage({
         }
     }, [gamePath, loaderCheckKey, activeGame, setLoaderFlag])
 
+    // Which UE4SS release is on disk, needed only when this page is one that distributes it.
+    useEffect(() => {
+        if (thisLoader?.id === 'ue4ss') void refreshUe4ssPage()
+    }, [thisLoader?.id, refreshUe4ssPage])
+
     const showChangelogTab = !!detail?.changelog
     const showLicenseTab = !!detail?.license
 
@@ -692,6 +713,27 @@ export function ModDetailPage({
                     gamePath={gamePath}
                     onRefreshInstalled={onRefreshInstalled}
                     onClose={() => setCbFlatArchiveData(null)}
+                />
+            )}
+            {loaderReplaceData && gamePath && (
+                <Ue4ssReplaceModal
+                    payload={loaderReplaceData}
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={onRefreshInstalled}
+                    onClose={() => setLoaderReplaceData(null)}
+                />
+            )}
+            {removingLoader && gamePath && (
+                <Ue4ssRemoveModal
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={async () => {
+                        await refreshLoader('ue4ss')
+                        await refreshUe4ssPage()
+                        await onRefreshInstalled()
+                    }}
+                    onClose={() => setRemovingLoader(false)}
                 />
             )}
             {unrecognizedModId !== null && (
@@ -783,9 +825,25 @@ export function ModDetailPage({
                         </>
                     )}
                     {mod && isLoaderMod && loaderModInstalled && (
-                        <span className="text-xs text-success-text">
-                            {t('detail.deps.statusInstalled')}
-                        </span>
+                        <>
+                            <span className="text-xs text-success-text">
+                                {t('detail.deps.statusInstalled')}
+                            </span>
+                            {/* Only UE4SS can be removed from here: it is the one loader whose
+                                files Modrex can tell apart from the game's and the user's. */}
+                            {thisLoader?.id === 'ue4ss' && (
+                                <Tooltip content={t('common.remove')}>
+                                    <Button
+                                        variant="danger"
+                                        size="icon-md"
+                                        disabled={!canAct}
+                                        onClick={() => setRemovingLoader(true)}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </Tooltip>
+                            )}
+                        </>
                     )}
                     {mod && installedFiles.length === 0 && !(isLoaderMod && loaderModInstalled) && (
                         <div className="flex flex-col items-end gap-1">

@@ -653,9 +653,13 @@ pub(crate) fn classify_archive_dirs(
                 continue;
             }
             for marker in *entry_markers {
-                let suffix = format!("/{}", marker);
+                let suffix = format!("/{}", marker).to_ascii_lowercase();
                 for name in names {
-                    if let Some(pos) = name.rfind(&suffix) {
+                    // Case-insensitive, because the scan side reads these markers off a
+                    // case-insensitive filesystem and has always accepted either spelling.
+                    // UE4SS sub-mods ship Scripts/main.lua and scripts/main.lua both, and a
+                    // mod install refused here is one the same mod copied in by hand keeps.
+                    if let Some(pos) = name.to_ascii_lowercase().rfind(&suffix) {
                         if pos > 0 {
                             let dir = name[..pos].to_string();
                             if !marker_dirs.contains(&dir) {
@@ -921,54 +925,117 @@ fn extract_dir_tar<R: Read>(
     Ok(())
 }
 
-/// UE4SS-settings.ini sits at the zip's top level only in the full loader package, verified
-/// against the real UE4SS-CB and PD3-UE4SS releases, both of which also ship many
-/// Scripts/main.lua paths for their own bundled framework sub-mods, so that marker alone can't
-/// tell a full loader install apart from a single standalone Lua sub-mod.
+/// The full loader package ships UE4SS.dll next to UE4SS-settings.ini; a standalone sub-mod
+/// carries neither, which is what tells the two apart. Both sides also carry Scripts/main.lua
+/// paths, because the loader bundles its own framework sub-mods in the shape a real one has,
+/// so that marker cannot decide it.
+///
+/// Matched on each entry's last segment rather than its whole name, because where the pair
+/// sits varies by release: the UE4 packages put both at the zip root, and the UE5 rebuild nests
+/// them under a wrapper folder and the settings file again under UE4SS/. Requiring the DLL is
+/// what keeps a sub-mod that happens to bundle a settings file of its own from matching.
 pub(crate) fn has_ue4ss_loader_signature(path: &Path) -> bool {
-    list_entries(path)
-        .map(|entries| {
-            entries
-                .iter()
-                .any(|e| !e.is_dir && e.name == "UE4SS-settings.ini")
-        })
-        .unwrap_or(false)
+    let Ok(entries) = list_entries(path) else {
+        return false;
+    };
+    let has = |wanted: &str| {
+        entries
+            .iter()
+            .any(|e| !e.is_dir && entry_file_name(&e.name) == wanted)
+    };
+    has("UE4SS-settings.ini") && has("UE4SS.dll")
+}
+
+/// The last segment of a normalized archive entry name.
+fn entry_file_name(name: &str) -> &str {
+    name.rsplit('/').next().unwrap_or(name)
 }
 
 /// Extracts every entry in the archive directly into dest, preserving the archive's own
-/// internal structure (used for the UE4SS loader package, which must land as a flat dump in
-/// Binaries/<platform>/ rather than under any scan-target skeleton).
+/// internal structure (used by the loaders that ship framework files alongside their hook, and
+/// must land as a flat dump in the game root rather than under any scan-target skeleton).
 pub fn extract_archive_flat(archive_path: &Path, dest: &Path) -> Result<(), String> {
+    extract_flat_under(archive_path, dest, "")
+}
+
+/// Extracts a UE4SS loader package into dest, dropping the one wrapper directory when the
+/// archive has one. Releases differ on this: the UE4 packages are flat at the zip root while
+/// the UE5 rebuild wraps everything in a folder named after the build, and the proxy DLL has
+/// to end up directly beside the game executable either way.
+pub fn extract_loader_package(archive_path: &Path, dest: &Path) -> Result<(), String> {
+    let root = list_entries(archive_path)
+        .ok()
+        .and_then(|entries| common_root_dir(&entries))
+        .unwrap_or_default();
+    extract_flat_under(archive_path, dest, &root)
+}
+
+/// The single top-level directory every entry sits under, if there is one. None when the
+/// archive has entries at its root or spans several top-level directories, since neither can
+/// be unwrapped without deciding which files to drop.
+fn common_root_dir(entries: &[ArchiveEntry]) -> Option<String> {
+    let mut root: Option<&str> = None;
+    for entry in entries {
+        let (head, _) = entry.name.split_once('/')?;
+        match root {
+            None => root = Some(head),
+            Some(seen) if seen == head => {}
+            Some(_) => return None,
+        }
+    }
+    root.map(|name| format!("{name}/"))
+}
+
+/// The entry's path with the wrapper directory removed, or None for the wrapper's own
+/// directory entry, which has nothing left to write.
+fn without_root<'a>(name: &'a str, root: &str) -> Option<&'a str> {
+    if root.is_empty() {
+        return Some(name);
+    }
+    name.strip_prefix(root).filter(|rest| !rest.is_empty())
+}
+
+fn extract_flat_under(archive_path: &Path, dest: &Path, root: &str) -> Result<(), String> {
     let budget = &mut extract_budget(archive_path);
     match detect_archive(archive_path) {
-        Some(ArchiveFormat::Zip) => extract_flat_zip(archive_path, dest, budget),
-        Some(ArchiveFormat::SevenZip) => extract_flat_7z(archive_path, dest, budget),
+        Some(ArchiveFormat::Zip) => extract_flat_zip(archive_path, dest, budget, root),
+        Some(ArchiveFormat::SevenZip) => extract_flat_7z(archive_path, dest, budget, root),
         Some(ArchiveFormat::TarGz) => extract_flat_tar(
             flate2::read::GzDecoder::new(File::open(archive_path).map_err(|e| e.to_string())?),
             dest,
             budget,
+            root,
         ),
         Some(ArchiveFormat::TarXz) => extract_flat_tar(
             xz2::read::XzDecoder::new(File::open(archive_path).map_err(|e| e.to_string())?),
             dest,
             budget,
+            root,
         ),
         Some(ArchiveFormat::Rar) => {
             check_rar_budget(archive_path, *budget)?;
-            extract_flat_rar(archive_path, dest)
+            extract_flat_rar(archive_path, dest, root)
         }
         None => Err("Not a supported archive format".to_string()),
     }
 }
 
-fn extract_flat_zip(zip_path: &Path, dest: &Path, budget: &mut u64) -> Result<(), String> {
+fn extract_flat_zip(
+    zip_path: &Path,
+    dest: &Path,
+    budget: &mut u64,
+    root: &str,
+) -> Result<(), String> {
     let file = File::open(zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().replace('\\', "/");
-        let Some(dest_path) = safe_dest(dest, &name) else {
+        let Some(name) = without_root(&name, root) else {
+            continue;
+        };
+        let Some(dest_path) = safe_dest(dest, name) else {
             continue;
         };
         if entry.is_dir() {
@@ -984,7 +1051,12 @@ fn extract_flat_zip(zip_path: &Path, dest: &Path, budget: &mut u64) -> Result<()
     Ok(())
 }
 
-fn extract_flat_7z(archive_path: &Path, dest: &Path, budget: &mut u64) -> Result<(), String> {
+fn extract_flat_7z(
+    archive_path: &Path,
+    dest: &Path,
+    budget: &mut u64,
+    root: &str,
+) -> Result<(), String> {
     use std::cell::RefCell;
     let file = File::open(archive_path).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
@@ -993,7 +1065,11 @@ fn extract_flat_7z(archive_path: &Path, dest: &Path, budget: &mut u64) -> Result
     let budget = RefCell::new(budget);
     sevenz_rust::decompress_with_extract_fn(file, Path::new("."), |entry, reader, _dst| {
         let name = entry.name().replace('\\', "/");
-        let Some(dest_path) = safe_dest(&dest, &name) else {
+        let Some(name) = without_root(&name, root) else {
+            let _ = std::io::copy(reader, &mut std::io::sink());
+            return Ok(true);
+        };
+        let Some(dest_path) = safe_dest(&dest, name) else {
             let _ = std::io::copy(reader, &mut std::io::sink());
             return Ok(true);
         };
@@ -1024,7 +1100,12 @@ fn extract_flat_7z(archive_path: &Path, dest: &Path, budget: &mut u64) -> Result
     Ok(())
 }
 
-fn extract_flat_tar<R: Read>(reader: R, dest: &Path, budget: &mut u64) -> Result<(), String> {
+fn extract_flat_tar<R: Read>(
+    reader: R,
+    dest: &Path,
+    budget: &mut u64,
+    root: &str,
+) -> Result<(), String> {
     let mut archive = tar::Archive::new(reader);
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
     for entry in archive.entries().map_err(|e| e.to_string())? {
@@ -1034,7 +1115,10 @@ fn extract_flat_tar<R: Read>(reader: R, dest: &Path, budget: &mut u64) -> Result
             .map_err(|e| e.to_string())?
             .to_string_lossy()
             .replace('\\', "/");
-        let Some(dest_path) = safe_dest(dest, &name) else {
+        let Some(name) = without_root(&name, root) else {
+            continue;
+        };
+        let Some(dest_path) = safe_dest(dest, name) else {
             continue;
         };
         if entry.header().entry_type().is_dir() {
@@ -1050,7 +1134,7 @@ fn extract_flat_tar<R: Read>(reader: R, dest: &Path, budget: &mut u64) -> Result
     Ok(())
 }
 
-fn extract_flat_rar(archive_path: &Path, dest: &Path) -> Result<(), String> {
+fn extract_flat_rar(archive_path: &Path, dest: &Path, root: &str) -> Result<(), String> {
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
     let tmp_dir = std::env::temp_dir().join(format!("modrex-rar-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&tmp_dir).map_err(|e| e.to_string())?;
@@ -1075,7 +1159,7 @@ fn extract_flat_rar(archive_path: &Path, dest: &Path) -> Result<(), String> {
                 }
             }
         }
-        rar_copy_dir(&tmp_dir, dest)
+        rar_copy_dir(&tmp_dir.join(root.trim_end_matches('/')), dest)
     })();
     let _ = std::fs::remove_dir_all(&tmp_dir);
     result
@@ -1428,12 +1512,36 @@ pub fn resolve_archive_download(
                     )))
                 }
                 1 => {
-                    let tmp = std::env::temp_dir()
-                        .join(format!("modrex-mod-{}.{extension}", Uuid::new_v4()));
                     let (index, name) = entries[0].clone();
                     let entry = StagedEntry {
                         source: StagedEntrySource::File { index },
-                        display_name: name,
+                        display_name: name.clone(),
+                    };
+                    // A target that keeps archive filenames needs the name to survive staging,
+                    // so the file is staged under its own name inside a temp directory rather
+                    // than as a uuid-named temp file.
+                    let keeps_name = cfg.primary().keeps_archive_filename();
+                    let parent =
+                        std::env::temp_dir().join(format!("modrex-mod-{}", Uuid::new_v4()));
+                    let (tmp, cleanup) = if keeps_name {
+                        let file_name = Path::new(&name)
+                            .file_name()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or(&name)
+                            .to_string();
+                        std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+                        (
+                            parent.join(file_name),
+                            CleanupPlan::RemoveOwnedDirectory(parent),
+                        )
+                    } else {
+                        let tmp = std::env::temp_dir()
+                            .join(format!("modrex-mod-{}.{extension}", Uuid::new_v4()));
+                        let cleanup = CleanupPlan::RemoveOwnedFileWithSidecars {
+                            path: tmp.clone(),
+                            companions: cfg.primary().companions,
+                        };
+                        (tmp, cleanup)
                     };
                     extract_staged_entry_with_sidecars(
                         &downloaded,
@@ -1441,14 +1549,14 @@ pub fn resolve_archive_download(
                         &tmp,
                         cfg.primary().companions,
                     )?;
-                    let cleanup = CleanupPlan::RemoveOwnedFileWithSidecars {
-                        path: tmp.clone(),
-                        companions: cfg.primary().companions,
-                    };
                     Ok(Staged {
                         root: tmp,
                         cleanup,
-                        name_source: NameSource::FromModDisplayName,
+                        name_source: if keeps_name {
+                            NameSource::FromArchive
+                        } else {
+                            NameSource::FromModDisplayName
+                        },
                         target_tag: None,
                         original_archive: Some(downloaded),
                     })

@@ -296,12 +296,18 @@ pub fn markdown(examples: &[(&str, &str)]) -> String {
          unit = {\n\
          \x20   kind = \"file\",\n\
          \x20   disabled_suffix = \".disabled\",\n\
+         \x20   filename = \"archive\",\n\
          \x20   family = {\n\
          \x20       extension = \"pak\",\n\
          \x20       companions = [\"ucas\", \"utoc\"],\n\
          \x20   },\n\
          }\n\
          ```\n\n\
+         `filename` says what an installed file is named after: `mod_name`, the default, uses\n\
+         the mod's own title, and `archive` keeps the name the file had in the archive it came\n\
+         from. Use `archive` where the engine reads the filename itself, as Unreal does, since a\n\
+         container renamed away from the `_P` its author gave it loses its patch priority. A\n\
+         bare download carries no archive name and falls back to the mod title either way.\n\n\
          `kind = \"directory\"` means one mod is one folder, and requires a `discovery` policy.\n\
          `ignore_preset` names a host list of folders that are never mods. `contains` is set when\n\
          Modrex synthesizes the folder around a file family rather than copying an author's\n\

@@ -25,6 +25,7 @@ pub(crate) enum StagedArchiveKind {
     MultiEntry,
     CrimeBossFlat,
     HostPack,
+    Ue4ssLoader,
 }
 
 /// Identifies one entry of a staged archive. Issued while enumerating, so it survives

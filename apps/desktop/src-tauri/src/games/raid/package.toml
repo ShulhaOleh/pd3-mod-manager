@@ -43,9 +43,6 @@ targets = [
             kind = "directory",
             ignore_preset = "diesel_infra",
 
-            # RAID-SuperBLT and RAIDWW2-BeardLib load script mods and asset override packs from
-            # this one folder, and the game's assets/mod_overrides mount is gone. Asset packs
-            # carry no supermod.xml or mod.xml, so no marker file could recognise them.
             discovery = {
                 policy = "all_directories",
             },

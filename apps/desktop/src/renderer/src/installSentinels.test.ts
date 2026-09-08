@@ -7,6 +7,7 @@ function makeHandlers(): InstallSentinelHandlers {
         onZipMultiPak: vi.fn(),
         onHostModPack: vi.fn(),
         onCbFlatArchive: vi.fn(),
+        onLoaderReplace: vi.fn(),
         onUnrecognizedArchive: vi.fn(),
     }
 }
@@ -44,6 +45,14 @@ const cbFlatPayload = {
     modVersion: '1.0',
 }
 
+const loaderReplacePayload = {
+    archiveHandle: 'handle-d',
+    modName: 'UE4SS',
+    page: { source: 'modworkshop', remoteId: '47771', fileId: 102150, version: '0.2.0' },
+    replaced: ['dxgi.dll', 'UE4SS.dll'],
+    preserved: ['Mods/CoolMod'],
+}
+
 describe('handleInstallOutcome', () => {
     it('returns false and calls nothing for a completed install', () => {
         const handlers = makeHandlers()
@@ -74,6 +83,15 @@ describe('handleInstallOutcome', () => {
         const outcome = { needsCbFlatConfirm: cbFlatPayload } as InstallOutcome
         expect(handleInstallOutcome(outcome, handlers)).toBe(true)
         expect(handlers.onCbFlatArchive).toHaveBeenCalledWith(cbFlatPayload)
+        expect(handlers.onZipMultiPak).not.toHaveBeenCalled()
+    })
+
+    it('routes a loader replacement outcome to onLoaderReplace only', () => {
+        const handlers = makeHandlers()
+        const outcome = { needsLoaderConfirm: loaderReplacePayload } as InstallOutcome
+        expect(handleInstallOutcome(outcome, handlers)).toBe(true)
+        expect(handlers.onLoaderReplace).toHaveBeenCalledWith(loaderReplacePayload)
+        expect(handlers.onCbFlatArchive).not.toHaveBeenCalled()
         expect(handlers.onZipMultiPak).not.toHaveBeenCalled()
     })
 

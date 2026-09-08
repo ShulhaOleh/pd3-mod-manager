@@ -252,11 +252,88 @@ fn loader_signature_absent_for_a_standalone_lua_submod() {
 }
 
 #[test]
-fn loader_signature_requires_top_level_ini_not_nested() {
-    // A sub-mod could plausibly bundle its own ini somewhere under its own folder,
-    // only a *top-level* UE4SS-settings.ini counts as the full loader.
+fn loader_signature_needs_the_engine_dll_not_just_an_ini() {
+    // A sub-mod could bundle a settings file of its own; only the loader ships UE4SS.dll.
     let zip = make_zip(&[("CoolMod/Config/UE4SS-settings.ini", b"not the real one")]);
     assert!(!has_ue4ss_loader_signature(zip.path()));
+}
+
+#[test]
+fn loader_signature_detects_the_ue5_wrapped_layout() {
+    // The UE5 rebuild wraps everything in a folder named after the build and puts the engine
+    // and its settings under UE4SS/, with only the proxy DLL beside them.
+    let zip = make_zip(&[
+        ("PD3-UE5-UE4SS-exp/dwmapi.dll", b"proxy"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS.dll", b"engine"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS-settings.ini", b"[General]"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/Mods/mods.txt", b"AllowModsMod : 1"),
+        (
+            "PD3-UE5-UE4SS-exp/UE4SS/Mods/Keybinds/Scripts/main.lua",
+            b"-- bundled framework sub-mod",
+        ),
+    ]);
+    assert!(has_ue4ss_loader_signature(zip.path()));
+}
+
+// ── extract_loader_package ─────────────────────────────────────────────────────
+
+#[test]
+fn loader_package_drops_the_wrapper_directory() {
+    // The proxy DLL has to land directly beside the game executable, not a level below it.
+    let zip = make_zip(&[
+        ("PD3-UE5-UE4SS-exp/dwmapi.dll", b"proxy"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/UE4SS.dll", b"engine"),
+        ("PD3-UE5-UE4SS-exp/UE4SS/Mods/mods.txt", b"AllowModsMod : 1"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert_eq!(fs::read(dest.path().join("dwmapi.dll")).unwrap(), b"proxy");
+    assert_eq!(
+        fs::read(dest.path().join("UE4SS/UE4SS.dll")).unwrap(),
+        b"engine"
+    );
+    assert!(!dest.path().join("PD3-UE5-UE4SS-exp").exists());
+}
+
+#[test]
+fn loader_package_leaves_a_flat_archive_alone() {
+    let zip = make_zip(&[
+        ("xinput1_3.dll", b"proxy"),
+        ("UE4SS.dll", b"engine"),
+        ("Mods/mods.txt", b"SomeMod : 1"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert_eq!(
+        fs::read(dest.path().join("xinput1_3.dll")).unwrap(),
+        b"proxy"
+    );
+    assert_eq!(
+        fs::read(dest.path().join("Mods/mods.txt")).unwrap(),
+        b"SomeMod : 1"
+    );
+}
+
+#[test]
+fn loader_package_keeps_several_top_level_directories() {
+    // Two roots cannot be unwrapped without deciding which one to drop, so neither is.
+    let zip = make_zip(&[("Win64/UE4SS.dll", b"a"), ("WinGDK/UE4SS.dll", b"b")]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert!(dest.path().join("Win64/UE4SS.dll").is_file());
+    assert!(dest.path().join("WinGDK/UE4SS.dll").is_file());
+}
+
+#[test]
+fn loader_package_rejects_path_traversal_through_a_wrapper() {
+    let zip = make_zip(&[
+        ("Wrapper/ok.dll", b"fine"),
+        ("Wrapper/../../evil.dll", b"escape attempt"),
+    ]);
+    let dest = TempDir::new().unwrap();
+    extract_loader_package(zip.path(), dest.path()).unwrap();
+    assert!(dest.path().join("ok.dll").is_file());
+    assert!(!dest.path().parent().unwrap().join("evil.dll").exists());
 }
 
 // ── extract_archive_flat ───────────────────────────────────────────────────────
@@ -3146,6 +3223,7 @@ const fn companion_target(companions: &'static [&'static str]) -> ScanTarget {
         tag: "paks",
         label_key: "mods",
         unit: ModUnit::File {
+            keeps_archive_filename: false,
             extension: "pak",
             disabled_suffix: ".disabled",
             priority_prefix: false,
@@ -3183,6 +3261,7 @@ const VPK_TARGETS: [ScanTarget; 1] = [ScanTarget {
     tag: "paks",
     label_key: "mods",
     unit: ModUnit::File {
+        keeps_archive_filename: false,
         extension: "vpk",
         disabled_suffix: ".off",
         priority_prefix: false,
@@ -3286,7 +3365,13 @@ fn the_install_filename_carries_the_declared_extension() {
     let cfg = &VPK_ENGINE;
     let tmp = TempDir::new().unwrap();
     assert_eq!(
-        decisions::install_filename_from_mod_name(cfg, cfg.primary(), "My Mod", tmp.path()),
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "My Mod",
+            tmp.path(),
+            crate::commands::mods::staged::NameSource::FromModDisplayName,
+        ),
         "My_Mod.vpk"
     );
     assert_eq!(
@@ -5548,4 +5633,1053 @@ fn a_first_time_drop_lands_in_no_folder() {
         ..InstalledMod::default()
     }];
     assert_eq!(dropped_install_folder_id(None, &mods, "MyHud_P.pak"), None);
+}
+
+// ── Reconciliation ownership ────────────────────────────────────────────────
+//
+// Phase 1 of identify_untracked decides whether an untracked file is a tracked mod's own
+// files moved on disk. An IoStore pak is a container stub whose bytes are shared by
+// unrelated mods, so a hash match alone cannot answer that, and uninstall, enable, disable
+// and reorder all resolve through the filename the answer writes. These cover every way a
+// record's files could change hands.
+
+/// Bytes an IoStore pak stub has in common with unrelated mods: the whole distinguishing
+/// payload sits in the ucas beside it.
+const OWN_STUB: &[u8] = b"IOSTORE-STUB-PAK-SHARED-BY-UNRELATED-MODS";
+
+fn own_mods_dir(game: &Path) -> PathBuf {
+    game.join("PAYDAY3/Content/Paks/~mods")
+}
+
+fn own_write_family(game: &Path, stem: &str, pak: &[u8], ucas: &[u8]) {
+    let dir = own_mods_dir(game);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{stem}.pak")), pak).unwrap();
+    fs::write(dir.join(format!("{stem}.ucas")), ucas).unwrap();
+    fs::write(dir.join(format!("{stem}.utoc")), b"toc").unwrap();
+}
+
+fn own_write_lone_pak(game: &Path, stem: &str, pak: &[u8]) {
+    let dir = own_mods_dir(game);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{stem}.pak")), pak).unwrap();
+}
+
+/// (pak, ucas, utoc) presence, so a lost companion is as visible as a lost pak.
+fn own_family_on_disk(game: &Path, stem: &str) -> (bool, bool, bool) {
+    let dir = own_mods_dir(game);
+    (
+        dir.join(format!("{stem}.pak")).is_file(),
+        dir.join(format!("{stem}.ucas")).is_file(),
+        dir.join(format!("{stem}.utoc")).is_file(),
+    )
+}
+
+fn own_read(game: &Path, rel: &str) -> Vec<u8> {
+    fs::read(own_mods_dir(game).join(rel)).unwrap()
+}
+
+fn own_tracked(uid: &str, filename: &str, sha: &str) -> InstalledMod {
+    InstalledMod {
+        uid: uid.to_string(),
+        id: -1,
+        name: format!("Mod {uid}"),
+        filename: filename.to_string(),
+        enabled: true,
+        sha256: Some(sha.to_string()),
+        ..InstalledMod::default()
+    }
+}
+
+async fn own_sha(path: &Path) -> String {
+    compute_sha256(path).await.unwrap()
+}
+
+/// The untracked branch of get_installed, in its order: known set, discovery, hashing,
+/// folder creation, then identification. The index is None, which is what an offline
+/// scan passes.
+async fn own_scan(
+    game: &str,
+    cfg: &'static ModEngineConfig,
+    state: &mut ModsState,
+) -> Vec<InstalledMod> {
+    let known: HashSet<String> = state
+        .mods
+        .iter()
+        .map(|m| {
+            let rel = get_folder_path(&state.folders, m.folder_id.as_deref());
+            let rel_path = match rel {
+                Some(r) => format!("{}/{}", r, m.filename),
+                None => m.filename.clone(),
+            };
+            format!("{}:{}", m.location.as_deref().unwrap_or(""), rel_path)
+        })
+        .collect();
+    let untracked = find_untracked_paks(game, &known, cfg).await;
+    let sha256s = hash_untracked(game, &untracked, cfg).await;
+    let folder_path_to_id = ensure_untracked_folders(state, &untracked);
+    identify_untracked(
+        state,
+        &untracked,
+        &sha256s,
+        &folder_path_to_id,
+        cfg,
+        game,
+        None,
+    )
+}
+
+fn own_filename(mods: &[InstalledMod], wanted: &str) -> String {
+    mods.iter()
+        .find(|m| m.uid == wanted)
+        .unwrap_or_else(|| panic!("{wanted} missing from the scan result"))
+        .filename
+        .clone()
+}
+
+#[tokio::test]
+async fn an_installed_twin_cannot_take_over_a_record_that_still_has_its_files() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA-only-in-A");
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB-only-in-B");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+    let b_ucas = own_read(tmp.path(), "002_ModB_P.ucas");
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    uninstall_mod_op(&game, &sp, "a", cfg).unwrap();
+
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "002_ModB_P"),
+        (true, true, true),
+        "uninstalling A must not touch B"
+    );
+    assert_eq!(
+        own_read(tmp.path(), "002_ModB_P.ucas"),
+        b_ucas,
+        "B's content must be unchanged"
+    );
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "001_ModA_P"),
+        (false, false, false),
+        "A's own family is what uninstall removes"
+    );
+}
+
+#[tokio::test]
+async fn a_twin_cannot_take_over_a_record_whose_files_are_gone() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    // A was deleted outside Modrex. Only the unrelated twin is on disk.
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB-only-in-B");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("002_ModB_P.pak")).await;
+    let b_ucas = own_read(tmp.path(), "002_ModB_P.ucas");
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    uninstall_mod_op(&game, &sp, "a", cfg).unwrap();
+
+    assert_eq!(
+        own_family_on_disk(tmp.path(), "002_ModB_P"),
+        (true, true, true),
+        "B survives even though A's own files were already gone"
+    );
+    assert_eq!(own_read(tmp.path(), "002_ModB_P.ucas"), b_ucas);
+}
+
+#[tokio::test]
+async fn a_companion_target_refuses_a_primary_only_relocation() {
+    // The candidate looks exactly like a renamed A: same pak bytes, nothing else to
+    // compare. Without stored family evidence that is not enough to move ownership.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_lone_pak(tmp.path(), "009_Renamed_P", OWN_STUB);
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("009_Renamed_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "001_ModA_P.pak",
+        "the record keeps its own filename"
+    );
+    assert_eq!(mods.len(), 2, "the candidate is listed on its own");
+}
+
+#[tokio::test]
+async fn two_tracked_records_sharing_a_hash_pick_no_winner() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "003_ModC_P", OWN_STUB, b"CCCC");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("003_ModC_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![
+            own_tracked("a", "001_ModA_P.pak", &sha),
+            own_tracked("b", "002_ModB_P.pak", &sha),
+        ],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "001_ModA_P.pak");
+    assert_eq!(own_filename(&mods, "b"), "002_ModB_P.pak");
+    assert_eq!(mods.len(), 3, "C is listed rather than absorbed");
+}
+
+#[tokio::test]
+async fn two_candidates_sharing_a_hash_pick_no_winner() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB");
+    own_write_family(tmp.path(), "003_ModC_P", OWN_STUB, b"CCCC");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("002_ModB_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "001_ModA_P.pak");
+    assert_eq!(mods.len(), 3, "both candidates stay visible");
+}
+
+#[tokio::test]
+async fn a_present_record_still_counts_when_another_sharing_its_hash_is_gone() {
+    // Diesel target, so the companion policy is not what refuses here. One record is
+    // present and one is missing; filtering the present one out first would leave a
+    // single candidate and a single record and manufacture a match.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let mods_dir = tmp.path().join("mods");
+    for name in ["Present", "Candidate"] {
+        let dir = mods_dir.join(name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("mod.txt"), b"{\"name\":\"shared\"}").unwrap();
+    }
+    let sha = own_sha(&mods_dir.join("Present/mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![
+            own_tracked("present", "Present", &sha),
+            own_tracked("gone", "Deleted", &sha),
+        ],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "gone"), "Deleted");
+    assert_eq!(own_filename(&mods, "present"), "Present");
+    assert_eq!(mods.len(), 3, "Candidate is listed on its own");
+}
+
+#[tokio::test]
+async fn the_outcome_does_not_depend_on_input_order() {
+    // The same two records and the same two candidates every time. Only the order the
+    // records sit in the state file, and the order the candidates are written to disk,
+    // change between runs.
+    async fn run(reversed_records: bool, written_first: &str) -> Vec<(String, String)> {
+        let tmp = TempDir::new().unwrap();
+        let cfg = engine_for_game("pd3").unwrap();
+        let game = tmp.path().to_str().unwrap().to_string();
+        let other = if written_first == "100_First_P" {
+            "900_Last_P"
+        } else {
+            "100_First_P"
+        };
+        own_write_family(tmp.path(), written_first, OWN_STUB, b"XXXX");
+        own_write_family(tmp.path(), other, OWN_STUB, b"YYYY");
+        let sha = own_sha(&own_mods_dir(tmp.path()).join("100_First_P.pak")).await;
+        let a = own_tracked("a", "001_Tracked_P.pak", &sha);
+        let b = own_tracked("b", "002_Tracked_P.pak", &sha);
+        let mut state = ModsState {
+            folders: vec![],
+            mods: if reversed_records {
+                vec![b, a]
+            } else {
+                vec![a, b]
+            },
+        };
+        let mut out: Vec<(String, String)> = own_scan(&game, cfg, &mut state)
+            .await
+            .into_iter()
+            .map(|m| (m.uid, m.filename))
+            .collect();
+        out.sort();
+        out
+    }
+
+    let forward = run(false, "100_First_P").await;
+    let reversed = run(true, "900_Last_P").await;
+    assert_eq!(forward, reversed, "ownership must not follow input order");
+    assert_eq!(
+        forward,
+        vec![
+            ("First_P.pak".to_string(), "100_First_P.pak".to_string()),
+            ("Last_P.pak".to_string(), "900_Last_P.pak".to_string()),
+            ("a".to_string(), "001_Tracked_P.pak".to_string()),
+            ("b".to_string(), "002_Tracked_P.pak".to_string()),
+        ],
+        "both records keep their own files and both candidates are listed"
+    );
+}
+
+#[tokio::test]
+async fn equal_hashes_in_different_targets_do_not_reconcile() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+    // A UE4SS sub-mod whose marker file happens to hold the same bytes.
+    let scripts = tmp
+        .path()
+        .join("PAYDAY3/Binaries/Win64/UE4SS/Mods/SomeLuaMod/Scripts");
+    fs::create_dir_all(&scripts).unwrap();
+    fs::write(scripts.join("main.lua"), OWN_STUB).unwrap();
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    let a = mods.iter().find(|m| m.uid == "a").unwrap();
+    assert_eq!(a.filename, "001_ModA_P.pak");
+    assert_eq!(a.location, None, "the record stays in the paks target");
+    assert!(
+        mods.iter()
+            .any(|m| m.filename == "SomeLuaMod" && m.location.as_deref() == Some("ue4ss_mods")),
+        "the lua mod is listed under its own target"
+    );
+}
+
+#[tokio::test]
+async fn an_unreadable_original_path_is_not_treated_as_absence() {
+    // An interior NUL makes the metadata call fail rather than answer "not found", which
+    // is the one portable way to reach the error arm of the presence check. A record whose
+    // own path cannot be inspected must not become relocatable.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Candidate");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"c\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "Unreadable\u{0}Name", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "Unreadable\u{0}Name",
+        "a record whose path cannot be inspected keeps its filename"
+    );
+    assert_eq!(mods.len(), 2, "the candidate is listed separately");
+}
+
+#[tokio::test]
+async fn a_disabled_original_still_counts_as_present() {
+    // The record's files sit in the disabled area, so it owns an installation and is not
+    // relocatable, even though nothing stands at its active path.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let disabled = tmp.path().join("mods/disabled/Original");
+    fs::create_dir_all(&disabled).unwrap();
+    fs::write(disabled.join("mod.txt"), b"{\"name\":\"o\"}").unwrap();
+    let candidate = tmp.path().join("mods/Elsewhere");
+    fs::create_dir_all(&candidate).unwrap();
+    fs::write(candidate.join("mod.txt"), b"{\"name\":\"o\"}").unwrap();
+    let sha = own_sha(&disabled.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            enabled: false,
+            ..own_tracked("a", "Original", &sha)
+        }],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "a"), "Original");
+    assert_eq!(mods.len(), 2);
+}
+
+#[tokio::test]
+async fn a_refused_candidate_is_identified_on_its_own() {
+    // The refusal must not be swallowed by the phase that follows it: the candidate has
+    // to reach identification and appear as its own entry.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    own_write_family(tmp.path(), "001_ModA_P", OWN_STUB, b"AAAA");
+    own_write_family(tmp.path(), "002_ModB_P", OWN_STUB, b"BBBB");
+    let sha = own_sha(&own_mods_dir(tmp.path()).join("001_ModA_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "001_ModA_P.pak", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(mods.len(), 2);
+    let b = mods
+        .iter()
+        .find(|m| m.filename == "002_ModB_P.pak")
+        .expect("B is listed");
+    assert_ne!(
+        b.uid, "a",
+        "B must not share the record it was refused against"
+    );
+    assert_eq!(b.sha256.as_deref(), Some(sha.as_str()));
+}
+
+#[tokio::test]
+async fn a_unique_move_in_a_target_without_companions_is_still_followed() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Renamed By Hand");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"m\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("a", "Original Name", &sha)],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(
+        own_filename(&mods, "a"),
+        "Renamed By Hand",
+        "a Diesel mod renamed on disk keeps its identity"
+    );
+    assert_eq!(mods.len(), 1, "no duplicate entry is created");
+}
+
+#[tokio::test]
+async fn a_host_pack_record_is_never_relocated() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+
+    let dir = tmp.path().join("mods/Candidate");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{\"name\":\"c\"}").unwrap();
+    let sha = own_sha(&dir.join("mod.txt")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            location: Some("host:17160:Assets".to_string()),
+            ..own_tracked("pack", "Some Set", &sha)
+        }],
+    };
+    let mods = own_scan(&game, cfg, &mut state).await;
+
+    assert_eq!(own_filename(&mods, "pack"), "Some Set");
+    assert_eq!(mods.len(), 2);
+}
+
+// ── UE4SS mods folder migration ────────────────────────────────────────────────
+
+fn ue4ss_dirs(game: &Path) -> (PathBuf, PathBuf) {
+    (
+        game.join("PAYDAY3/Binaries/Win64/Mods"),
+        game.join("PAYDAY3/Binaries/Win64/UE4SS/Mods"),
+    )
+}
+
+fn write_submod(dir: &Path, name: &str, body: &[u8]) {
+    let scripts = dir.join(name).join("Scripts");
+    fs::create_dir_all(&scripts).unwrap();
+    fs::write(scripts.join("main.lua"), body).unwrap();
+}
+
+#[test]
+fn ue4ss_submods_move_to_the_folder_the_loader_reads() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- lua");
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- lua"
+    );
+    assert!(!legacy.join("CoolMod").exists());
+}
+
+#[test]
+fn the_loaders_own_mods_txt_is_left_where_it_is() {
+    // The shipped loader writes its own with AllowModsMod enabled; an older copy moved over
+    // it would turn the pak-mod bypass back off.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(legacy.join("mods.txt"), b"CoolMod : 1").unwrap();
+    fs::create_dir_all(&current).unwrap();
+    fs::write(current.join("mods.txt"), b"AllowModsMod : 1").unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("mods.txt")).unwrap(),
+        b"AllowModsMod : 1"
+    );
+    assert!(legacy.join("mods.txt").is_file());
+}
+
+#[test]
+fn a_submod_already_in_place_is_not_overwritten() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- moved");
+    write_submod(&current, "CoolMod", b"-- already here");
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/main.lua")).unwrap(),
+        b"-- already here",
+        "the mod standing there keeps its name and content"
+    );
+    assert_eq!(
+        fs::read(current.join("CoolMod (2)/Scripts/main.lua")).unwrap(),
+        b"-- moved",
+        "and the one being moved takes a free name beside it"
+    );
+    assert!(!legacy.join("CoolMod").exists());
+}
+
+#[test]
+fn a_game_without_a_ue4ss_target_migrates_nothing() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd2").unwrap();
+    let dir = tmp.path().join("mods/CoolMod");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("mod.txt"), b"{}").unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert!(dir.join("mod.txt").is_file());
+}
+
+// ── Archive filenames on file-unit targets ─────────────────────────────────────
+
+#[test]
+fn an_unreal_pak_keeps_the_name_its_author_gave_it() {
+    // _P is what tells Unreal a container holds patch content, so it has to reach the disk.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
+    let sp = get_state_path(game, cfg);
+    let src = TempDir::new().unwrap();
+    let staged = src.path().join("pakchunk123-Windows_P.pak");
+    fs::write(&staged, b"pak").unwrap();
+    fs::write(src.path().join("pakchunk123-Windows_P.ucas"), b"bulk").unwrap();
+    fs::write(src.path().join("pakchunk123-Windows_P.utoc"), b"toc").unwrap();
+
+    let filename = decisions::install_filename_from_mod_name(
+        cfg,
+        cfg.primary(),
+        "Clean Main Menu (CMM)",
+        &staged,
+        super::staged::NameSource::FromArchive,
+    );
+    assert_eq!(filename, "pakchunk123-Windows_P.pak");
+
+    install_mod_from_path(
+        game,
+        &sp,
+        InstalledMod {
+            uid: "1".into(),
+            filename,
+            enabled: true,
+            ..InstalledMod::default()
+        },
+        &staged,
+        None,
+        cfg,
+        cfg.primary(),
+    )
+    .unwrap();
+
+    let mods_dir = tmp.path().join("PAYDAY3/Content/Paks/~mods");
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.pak").is_file());
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.ucas").is_file());
+    assert!(mods_dir.join("001_pakchunk123-Windows_P.utoc").is_file());
+}
+
+#[test]
+fn a_bare_download_still_takes_the_mods_name() {
+    // Nothing staged an archive name here, so the mod's title is the only readable choice.
+    let cfg = engine_for_game("pd3").unwrap();
+    let staged = std::path::Path::new("/tmp/modrex-mod-9f2c.pak");
+    assert_eq!(
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "Clean Main Menu (CMM)",
+            staged,
+            super::staged::NameSource::FromModDisplayName,
+        ),
+        "Clean_Main_Menu_CMM.pak"
+    );
+}
+
+#[test]
+fn a_diesel_mod_is_unaffected_by_archive_naming() {
+    let cfg = engine_for_game("pd2").unwrap();
+    let staged = std::path::Path::new("/tmp/modrex-mod-abc/Some Folder");
+    assert_eq!(
+        decisions::install_filename_from_mod_name(
+            cfg,
+            cfg.primary(),
+            "Some Mod",
+            staged,
+            super::staged::NameSource::FromArchive,
+        ),
+        "Some Folder"
+    );
+}
+
+#[test]
+fn a_lua_submod_is_recognized_whatever_case_its_scripts_folder_uses() {
+    // The UE4SS sub-mods published since the UE5 update ship a lowercase scripts/ folder.
+    let cfg = engine_for_game("pd3").unwrap();
+    for marker in [
+        "RT-FOV-2.4/scripts/main.lua",
+        "RT-FOV-2.4/Scripts/main.lua",
+        "RT-FOV-2.4/SCRIPTS/Main.lua",
+    ] {
+        let dirs = classify_archive_dirs(&[marker.to_string()], cfg);
+        assert_eq!(
+            dirs,
+            vec![("RT-FOV-2.4".to_string(), Some("ue4ss_mods".to_string()))],
+            "{marker}"
+        );
+    }
+}
+
+#[test]
+fn a_marker_at_the_archive_root_names_no_mod_folder() {
+    let cfg = engine_for_game("pd3").unwrap();
+    assert!(classify_archive_dirs(&["scripts/main.lua".to_string()], cfg).is_empty());
+}
+
+// ── UE4SS enabled.txt ──────────────────────────────────────────────────────────
+
+fn ue4ss_mod_fixture(ships_marker: bool) -> (TempDir, PathBuf, PathBuf, &'static ModEngineConfig) {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let base = tmp.path().join("PAYDAY3/Binaries/Win64/UE4SS/Mods");
+    let dir = base.join("CoolMod");
+    fs::create_dir_all(dir.join("Scripts")).unwrap();
+    fs::write(dir.join("Scripts/main.lua"), b"-- lua").unwrap();
+    if ships_marker {
+        fs::write(dir.join("enabled.txt"), b"").unwrap();
+    }
+    fs::write(base.join("mods.txt"), b"CoolMod : 1\n").unwrap();
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: vec![],
+            mods: vec![InstalledMod {
+                uid: "1".into(),
+                filename: "CoolMod".into(),
+                enabled: true,
+                location: Some("ue4ss_mods".into()),
+                ..InstalledMod::default()
+            }],
+        },
+    )
+    .unwrap();
+    (tmp, sp, dir, cfg)
+}
+
+#[test]
+fn disabling_a_submod_parks_the_marker_that_would_load_it_anyway() {
+    let (tmp, sp, dir, cfg) = ue4ss_mod_fixture(true);
+    let game = tmp.path().to_str().unwrap();
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(
+        !dir.join("enabled.txt").exists(),
+        "the loader would still start it"
+    );
+    assert!(dir.join("enabled.txt.disabled").is_file());
+
+    enable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(
+        dir.join("enabled.txt").is_file(),
+        "the mod gets its marker back"
+    );
+    assert!(!dir.join("enabled.txt.disabled").exists());
+}
+
+#[test]
+fn a_submod_that_never_shipped_a_marker_never_gains_one() {
+    let (tmp, sp, dir, cfg) = ue4ss_mod_fixture(false);
+    let game = tmp.path().to_str().unwrap();
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    enable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(!dir.join("enabled.txt").exists());
+    assert!(!dir.join("enabled.txt.disabled").exists());
+}
+
+#[test]
+fn the_mods_txt_entry_still_tracks_the_toggle() {
+    let (tmp, sp, _dir, cfg) = ue4ss_mod_fixture(true);
+    let game = tmp.path().to_str().unwrap();
+    let mods_txt = tmp
+        .path()
+        .join("PAYDAY3/Binaries/Win64/UE4SS/Mods/mods.txt");
+
+    disable_mod_op(game, &sp, "1", cfg, None).unwrap();
+    assert!(fs::read_to_string(&mods_txt)
+        .unwrap()
+        .contains("CoolMod : 0"));
+    assert!(!read_state(&sp).unwrap().mods[0].enabled);
+}
+
+#[test]
+fn two_same_named_files_in_different_folders_both_stay_visible() {
+    // by_uid keeps the first entry under a key, so two files reducing to one uid would leave
+    // the second out of the list entirely.
+    let mut by_uid: std::collections::HashMap<String, InstalledMod> =
+        std::collections::HashMap::new();
+    by_uid.insert(
+        "CoolMod.pak".to_string(),
+        InstalledMod {
+            uid: "CoolMod.pak".into(),
+            ..InstalledMod::default()
+        },
+    );
+    let uid = super::identify::unique_uid(&by_uid, "001_CoolMod.pak", "Favourites/001_CoolMod.pak");
+    assert_eq!(uid, "Favourites/001_CoolMod.pak");
+    assert!(!by_uid.contains_key(&uid));
+}
+
+#[test]
+fn a_uid_is_found_even_when_the_path_is_taken_too() {
+    let mut by_uid: std::collections::HashMap<String, InstalledMod> =
+        std::collections::HashMap::new();
+    for taken in ["CoolMod.pak", "Favourites/CoolMod.pak"] {
+        by_uid.insert(taken.to_string(), InstalledMod::default());
+    }
+    let uid = super::identify::unique_uid(&by_uid, "CoolMod.pak", "Favourites/CoolMod.pak");
+    assert_eq!(uid, "Favourites/CoolMod.pak#2");
+}
+
+#[test]
+fn a_crime_boss_install_is_not_touched_by_the_ue4ss_migration() {
+    // Its ue4ss target never moved, so there is no legacy folder to walk back to. Reading the
+    // parent of the parent would name CrimeBoss/Binaries/Mods, which means nothing.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("cb").unwrap();
+    let mods = tmp
+        .path()
+        .join("CrimeBoss/Binaries/Win64/Mods/CoolMod/Scripts");
+    fs::create_dir_all(&mods).unwrap();
+    fs::write(mods.join("main.lua"), b"-- lua").unwrap();
+    let stray = tmp.path().join("CrimeBoss/Binaries/Mods/Stray");
+    fs::create_dir_all(&stray).unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert!(mods.join("main.lua").is_file(), "the real mod stays put");
+    assert!(
+        stray.is_dir(),
+        "nothing is moved out of a path that means nothing"
+    );
+}
+
+#[test]
+fn a_companion_that_cannot_be_read_yields_no_hash() {
+    // An interior NUL makes the open fail rather than answer "not found".
+    assert!(super::identify::hash_file(std::path::Path::new("bad\u{0}name.ucas")).is_err());
+}
+
+#[test]
+fn a_missing_companion_is_not_an_error() {
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(
+        super::identify::hash_file(&tmp.path().join("absent.ucas")).unwrap(),
+        None
+    );
+}
+
+#[test]
+fn a_colliding_name_moves_aside_and_keeps_its_record() {
+    // Both folders hold CoolMod and they are different mods, right down to sharing the same
+    // bootstrap main.lua, which is why comparing markers cannot settle ownership. The mod
+    // being moved takes a free name and the record follows it.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- shared bootstrap");
+    fs::write(legacy.join("CoolMod/Scripts/tracked_only.lua"), b"-- mine").unwrap();
+    write_submod(&current, "CoolMod", b"-- shared bootstrap");
+    fs::write(current.join("CoolMod/Scripts/other_only.lua"), b"-- theirs").unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(&sp, &ue4ss_state(None)).unwrap();
+
+    let state = super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    assert_eq!(state.mods.len(), 1, "the record is kept, not dropped");
+    assert_eq!(state.mods[0].filename, "CoolMod (2)");
+    assert_eq!(
+        fs::read(current.join("CoolMod (2)/Scripts/tracked_only.lua")).unwrap(),
+        b"-- mine",
+        "the tracked mod moved whole"
+    );
+    assert_eq!(
+        fs::read(current.join("CoolMod/Scripts/other_only.lua")).unwrap(),
+        b"-- theirs",
+        "the mod already there keeps its name and files"
+    );
+    assert!(
+        !legacy.join("CoolMod").exists(),
+        "nothing is left unscannable"
+    );
+}
+
+#[test]
+fn uninstalling_the_moved_record_leaves_the_other_mod_alone() {
+    // The exact hazard: identical marker bytes, different contents, then an uninstall.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- shared bootstrap");
+    write_submod(&current, "CoolMod", b"-- shared bootstrap");
+    fs::write(current.join("CoolMod/Scripts/other_only.lua"), b"-- theirs").unwrap();
+
+    let sp = get_state_path(game, cfg);
+    save_state(&sp, &ue4ss_state(None)).unwrap();
+    let state = super::state::reconcile_state(game, &sp, cfg).unwrap();
+    save_state(&sp, &state).unwrap();
+
+    uninstall_mod_op(game, &sp, "1", cfg).unwrap();
+
+    assert!(
+        current.join("CoolMod/Scripts/other_only.lua").is_file(),
+        "the other mod's files must survive"
+    );
+    assert!(current.join("CoolMod/Scripts/main.lua").is_file());
+    assert!(
+        !current.join("CoolMod (2)").exists(),
+        "only the record's own copy goes"
+    );
+}
+
+#[test]
+fn a_moved_record_keeps_loading_under_its_new_name() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let (legacy, current) = ue4ss_dirs(tmp.path());
+    write_submod(&legacy, "CoolMod", b"-- mine");
+    write_submod(&current, "CoolMod", b"-- theirs");
+    fs::write(
+        current.join("mods.txt"),
+        b"CoolMod : 1
+",
+    )
+    .unwrap();
+
+    let sp = get_state_path(tmp.path().to_str().unwrap(), cfg);
+    save_state(&sp, &ue4ss_state(None)).unwrap();
+    super::state::reconcile_state(tmp.path().to_str().unwrap(), &sp, cfg).unwrap();
+
+    let mods_txt = fs::read_to_string(current.join("mods.txt")).unwrap();
+    assert!(
+        mods_txt.contains("CoolMod (2) : 1"),
+        "the renamed folder needs its own entry or the loader stops reading it: {mods_txt}"
+    );
+    assert!(
+        mods_txt.contains("CoolMod : 1"),
+        "the other mod's entry is untouched"
+    );
+}
+
+fn ue4ss_state(sha: Option<&str>) -> ModsState {
+    ModsState {
+        folders: vec![],
+        mods: vec![InstalledMod {
+            uid: "1".into(),
+            filename: "CoolMod".into(),
+            enabled: true,
+            location: Some("ue4ss_mods".into()),
+            sha256: sha.map(str::to_string),
+            ..InstalledMod::default()
+        }],
+    }
+}
+
+#[tokio::test]
+async fn a_refused_twin_survives_a_scan_persist_rescan_round_trip() {
+    // The whole path, not just the uid allocator: a record whose files are gone, two
+    // same-named twins in different folders, saved and read back. Both have to be listed on
+    // both passes, and uninstalling the tracked record must not reach either of them.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+    let mods_dir = own_mods_dir(tmp.path());
+    for folder in ["Alpha", "Beta"] {
+        fs::create_dir_all(mods_dir.join(folder)).unwrap();
+        fs::write(mods_dir.join(folder).join("Twin_P.pak"), OWN_STUB).unwrap();
+        fs::write(mods_dir.join(folder).join("Twin_P.ucas"), folder.as_bytes()).unwrap();
+    }
+    let sha = own_sha(&mods_dir.join("Alpha/Twin_P.pak")).await;
+
+    let mut state = ModsState {
+        folders: vec![],
+        mods: vec![own_tracked("gone", "Deleted_P.pak", &sha)],
+    };
+    let first = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods: first.clone(),
+        },
+    )
+    .unwrap();
+
+    let listed: Vec<&str> = first.iter().map(|m| m.filename.as_str()).collect();
+    assert_eq!(listed.iter().filter(|f| **f == "Twin_P.pak").count(), 2);
+    assert_eq!(first.len(), 3, "the record plus both twins");
+
+    // Rescan from the persisted state: everything is tracked now, so nothing is rediscovered
+    // and no entry has been collapsed away.
+    let mut reloaded = read_state(&sp).unwrap();
+    let second = own_scan(&game, cfg, &mut reloaded).await;
+    assert_eq!(second.len(), 3, "the round trip keeps every entry");
+
+    uninstall_mod_op(&game, &sp, "gone", cfg).unwrap();
+    for folder in ["Alpha", "Beta"] {
+        assert!(
+            mods_dir.join(folder).join("Twin_P.pak").is_file(),
+            "{folder} must be untouched"
+        );
+        assert!(mods_dir.join(folder).join("Twin_P.ucas").is_file());
+    }
+}
+
+#[test]
+fn a_loader_row_refuses_the_operations_it_cannot_perform() {
+    // Its uid is not in state.json, so these ops would otherwise find nothing and report
+    // success for work they never did. Guarded at the op rather than at the controls,
+    // because several renderer paths reach them.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap();
+    let sp = get_state_path(game, cfg);
+    save_state(&sp, &ModsState::default()).unwrap();
+
+    let removed = uninstall_mod_op(game, &sp, "loader:ue4ss", cfg).unwrap_err();
+    assert!(removed.contains("mod loader"), "unexpected: {removed}");
+    let disabled = disable_mod_op(game, &sp, "loader:ue4ss", cfg, None).unwrap_err();
+    assert!(disabled.contains("mod loader"), "unexpected: {disabled}");
+    let enabled = enable_mod_op(game, &sp, "loader:ue4ss", cfg, None).unwrap_err();
+    assert!(enabled.contains("mod loader"), "unexpected: {enabled}");
+}
+
+#[tokio::test]
+async fn a_loader_row_is_never_written_into_the_saved_mod_list() {
+    // It is built into the response, so a scan that saves must not persist it and a rescan
+    // must not then treat it as a mod that went missing.
+    let tmp = TempDir::new().unwrap();
+    let cfg = engine_for_game("pd3").unwrap();
+    let game = tmp.path().to_str().unwrap().to_string();
+    let dir = tmp.path().join("PAYDAY3/Binaries/Win64");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("dwmapi.dll"), b"a loader of some kind").unwrap();
+    own_write_family(tmp.path(), "001_ModA_P", b"REAL-A", b"AAAA");
+
+    let mut state = ModsState::default();
+    let mods = own_scan(&game, cfg, &mut state).await;
+    let sp = get_state_path(&game, cfg);
+    save_state(
+        &sp,
+        &ModsState {
+            folders: state.folders.clone(),
+            mods,
+        },
+    )
+    .unwrap();
+
+    let saved = read_state(&sp).unwrap();
+    assert!(
+        saved.mods.iter().all(|m| !m.uid.starts_with("loader:")),
+        "the loader must not reach state.json"
+    );
 }

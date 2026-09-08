@@ -32,16 +32,11 @@ install = {
 }
 
 loaders = [
-    # One maintainer and one release line, UE4SS-CB, so no other proxy DLL has been seen. The
-    # game has no Xbox or GamePass release and no Epic build of this loader has been confirmed.
     {
         kind = "ue4ss",
         modworkshop_ids = [47749],
         storefronts = ["steam"],
         proxy_dlls = ["dwmapi.dll"],
-        # A game path already ends in the installdir, so this and every target path name the
-        # inner CrimeBoss project folder rather than repeating it. Verified against a real
-        # install.
         install_into = ["CrimeBoss", "Binaries", "Win64"],
     },
 ]
@@ -52,10 +47,6 @@ package_reader = {
 }
 
 targets = [
-    # The official ModKit installs here, and its UGC loader merges the Data Table Extensions of
-    # the mods living here additively. The legacy paks target below is plain Unreal pak mounting
-    # with no merge semantics, resolving overlapping data as last-loaded-wins, so it is kept only
-    # for loose-triplet mods and is never chosen for a new install.
     {
         tag = "mods",
         label = "modkit_mods",
@@ -68,9 +59,6 @@ targets = [
         unit = {
             kind = "directory",
 
-            # Modrex synthesizes the Content/Paks/WindowsNoEditor/ wrapper itself around the pak
-            # it finds, however the source archive nested things, so the folder installed here
-            # always holds one family.
             contains = {
                 extension = "pak",
                 companions = ["ucas", "utoc"],
@@ -92,6 +80,7 @@ targets = [
         unit = {
             kind = "file",
             disabled_suffix = ".disabled",
+            filename = "archive",
 
             family = {
                 extension = "pak",

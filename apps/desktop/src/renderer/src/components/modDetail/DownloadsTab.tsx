@@ -32,6 +32,8 @@ import { HostPackModal } from '../HostPackModal'
 import type { HostPackPayload } from '../HostPackModal'
 import { CrimeBossFlatArchiveModal } from '../CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from '../CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from '../Ue4ssReplaceModal'
+import type { LoaderReplacePayload } from '../Ue4ssReplaceModal'
 import { UnrecognizedArchiveModal } from '../UnrecognizedArchiveModal'
 import { NonPakConfirmModal } from '../NonPakConfirmModal'
 import { formatBytes, formatDate } from './format'
@@ -143,6 +145,7 @@ export function DownloadsTab({
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
     const crimeBossInstallTarget = useCrimeBossInstallTarget(
         activeGame ?? 'pd3',
         gamePath,
@@ -212,6 +215,7 @@ export function DownloadsTab({
                     onZipMultiPak: setZipPickerData,
                     onHostModPack: setHostPackData,
                     onCbFlatArchive: setCbFlatArchiveData,
+                    onLoaderReplace: setLoaderReplaceData,
                     onUnrecognizedArchive: () => setUnrecognizedModId(mod.id),
                 })
             ) {
@@ -462,6 +466,15 @@ export function DownloadsTab({
                     gamePath={gamePath}
                     onRefreshInstalled={onRefreshInstalled}
                     onClose={() => setCbFlatArchiveData(null)}
+                />
+            )}
+            {loaderReplaceData && gamePath && (
+                <Ue4ssReplaceModal
+                    payload={loaderReplaceData}
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={onRefreshInstalled}
+                    onClose={() => setLoaderReplaceData(null)}
                 />
             )}
             {unrecognizedModId !== null && (

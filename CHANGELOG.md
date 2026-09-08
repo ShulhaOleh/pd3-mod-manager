@@ -11,11 +11,13 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Added a viewer for browsing the contents of installed Unreal Engine pak mods.
 - Added an optional Windows setting to start SISR before games launched from Modrex, with setup and launch-failure warnings.
 - Added a setting to choose the app's accent color.
+- Modrex now names which UE4SS release is installed, and can replace it with another or remove it. Both say what they change and what they keep first.
 
 ### Changed
 
 - Startup no longer runs the Microsoft Store lookup for a game more than once at a time.
 - The game picker no longer changes which copy of a game is selected while working out which games are installed.
+- PAYDAY 3 no longer asks for the -fileopenlog launch option, which the game stopped reading in Update 3.8.
 
 ### Fixed
 
@@ -29,6 +31,10 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Fixed a mod being left split between folders when its .ucas or .utoc file could not be moved with its pak.
 - Fixed mod folders and load order being lost when Modrex could not read its saved mod list.
 - Fixed dragging a mod's archive onto Modrex moving that mod out of the folder it was filed in, unlike installing it from its page.
+- Fixed uninstalling a PAYDAY 3 mod deleting another mod's files.
+- Fixed one UE4SS release reading as installed on another release's page, leaving no way to switch between them.
+- Fixed installing UE4SS leaving an older one hooked into the game beside it.
+- Fixed your own Lua mods being left in the old folder when a UE4SS update moves where the loader reads them.
 
 ## 0.14.0
 

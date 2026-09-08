@@ -143,6 +143,7 @@ fn a_discovered_spec_resolves_its_package() {
                     package::Unit::File {
                         family,
                         disabled_suffix: declared_suffix,
+                        ..
                     },
                 ) => {
                     assert_eq!(*extension, family.extension);
@@ -465,15 +466,15 @@ fn pd3_resolves_both_of_its_mod_targets() {
     );
     assert_eq!(
         mods_dir(game, ue4ss),
-        root.join("PAYDAY3/Binaries/Win64/Mods")
+        root.join("PAYDAY3/Binaries/Win64/UE4SS/Mods")
     );
     assert_eq!(
         disabled_dir(game, ue4ss),
-        root.join("PAYDAY3/Binaries/Win64/Mods/disabled")
+        root.join("PAYDAY3/Binaries/Win64/UE4SS/Mods/disabled")
     );
     assert_eq!(
         backup_dir(game, ue4ss),
-        root.join("PAYDAY3/Binaries/Win64/Mods.bak")
+        root.join("PAYDAY3/Binaries/Win64/UE4SS/Mods.bak")
     );
     assert_eq!(
         get_state_path(game, cfg),

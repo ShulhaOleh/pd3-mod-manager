@@ -59,12 +59,6 @@
         "maximize": "最大化",
         "restore": "还原",
         "close": "关闭",
-        "missingLaunchOption": {
-            "title": "缺少启动选项",
-            "bodyPre": "建议添加此选项，以确保大多数模组能够正确加载。请在以下位置添加：",
-            "location": "设置 > 启动选项",
-            "launchAnyway": "仍然启动"
-        },
         "sisr": {
             "unsupported": "此操作系统不支持 SISR 自动启动。游戏已在未启动 SISR 的情况下启动。",
             "notInstalled": "未找到 SISR。游戏已在未启动 SISR 的情况下启动。",
@@ -426,11 +420,7 @@
             "multipleCopies": "找到 {count} 个游戏副本；所选启动器将决定 Modrex 对哪个副本应用模组并启动。"
         },
         "launchOptions": {
-            "title": "启动选项",
-            "descriptionPre": "启动 PAYDAY 3 时传递的额外参数。",
-            "descriptionPost": "建议使用此参数，以确保大多数模组能够正确加载。",
-            "xboxNotePre": "Microsoft Store 不支持启动选项。要启用模组日志记录，请添加",
-            "xboxNotePost": "到 Xbox 应用中的 PAYDAY 3 > 管理 > 启动选项。"
+            "title": "启动选项"
         },
         "crashReporter": {
             "title": "崩溃报告器清理",

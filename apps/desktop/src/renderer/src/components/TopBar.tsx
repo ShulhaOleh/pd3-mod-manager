@@ -1,14 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Button } from './ui/Button'
-import { Play, Square, TriangleAlert, X, RefreshCw, Loader } from 'lucide-react'
-import { Dialog, DialogHeader } from './Dialog'
+import { Play, Square, X, RefreshCw, Loader } from 'lucide-react'
 import { WindowControls } from './WindowControls'
 import { Tooltip } from './Tooltip'
 import { t } from '../i18n'
 import { api } from '../api'
 import type { SisrLaunchIssue } from '../api'
 import type { GameId } from '../../../shared/types'
-import { GAMES } from '../../../shared/types'
 
 interface UpdateState {
     phase: 'downloading' | 'ready'
@@ -34,8 +32,6 @@ export function TopBar({
 }: Props) {
     const [gameRunning, setGameRunning] = useState(false)
     const [launching, setLaunching] = useState<'modded' | 'vanilla' | null>(null)
-    const [showWarning, setShowWarning] = useState(false)
-    const [dontShowAgain, setDontShowAgain] = useState(false)
     const [launchError, setLaunchError] = useState<string | null>(null)
     const [launchWarning, setLaunchWarning] = useState<SisrLaunchIssue | null>(null)
     const wasRunning = useRef(false)
@@ -110,24 +106,6 @@ export function TopBar({
     }, [onRefreshInstalled, activeGame, hideGameActions])
 
     async function handleLaunchModded() {
-        const requiredFlag = GAMES[activeGame].requiredLaunchFlag
-        if (requiredFlag) {
-            const settings = await api.getSettings()
-            if (
-                !settings.skipFileOpenLogWarning &&
-                !settings.launchOptions?.includes(requiredFlag)
-            ) {
-                setDontShowAgain(false)
-                setShowWarning(true)
-                return
-            }
-        }
-        await launchModded()
-    }
-
-    async function confirmLaunch() {
-        if (dontShowAgain) await api.setSkipFileOpenLogWarning(true)
-        setShowWarning(false)
         await launchModded()
     }
 
@@ -301,50 +279,6 @@ export function TopBar({
                     </Tooltip>
                 </div>
             )}
-
-            <Dialog
-                open={showWarning}
-                onOpenChange={(open) => !open && setShowWarning(false)}
-                title={t('topBar.missingLaunchOption.title')}
-                className="w-96"
-            >
-                <DialogHeader
-                    title={t('topBar.missingLaunchOption.title')}
-                    icon={<TriangleAlert className="w-4 h-4 text-warning shrink-0" />}
-                    onClose={() => setShowWarning(false)}
-                    wrapSubtitle
-                    subtitle={
-                        <>
-                            <span className="font-mono text-text">
-                                {GAMES[activeGame].requiredLaunchFlag}
-                            </span>{' '}
-                            {t('topBar.missingLaunchOption.bodyPre')}{' '}
-                            <span className="text-text">
-                                {t('topBar.missingLaunchOption.location')}
-                            </span>
-                            .
-                        </>
-                    }
-                />
-                <div className="flex items-center justify-between px-6 py-4 shrink-0">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                            type="checkbox"
-                            checked={dontShowAgain}
-                            onChange={(e) => setDontShowAgain(e.target.checked)}
-                        />
-                        <span className="text-xs text-text-muted">{t('common.dontShowAgain')}</span>
-                    </label>
-                    <div className="flex gap-2">
-                        <Button variant="secondary" size="md" onClick={() => setShowWarning(false)}>
-                            {t('common.cancel')}
-                        </Button>
-                        <Button variant="accent" size="md" onClick={confirmLaunch}>
-                            {t('topBar.missingLaunchOption.launchAnyway')}
-                        </Button>
-                    </div>
-                </div>
-            </Dialog>
         </>
     )
 }

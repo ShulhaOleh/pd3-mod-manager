@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { Tooltip } from './Tooltip'
 import { useThumbnail } from '../hooks/useThumbnail'
 import { Button } from './ui/Button'
+import { isLoader } from '../hooks/installedUtils'
 import { formatCount, formatRelativeTime } from './modDetail/format'
 import { hasCatalogLink } from '../hooks/installedUtils'
 import NexusIcon from '../../../../assets/icons/nexusmods.svg?react'
@@ -197,11 +198,15 @@ export function ModCard({
                                 </button>
                             </>
                         )}
-                        <Toggle
-                            checked={installed.enabled}
-                            onChange={(v) => (v ? onEnable() : onDisable())}
-                            disabled={!canAct || !!installed.missing}
-                        />
+                        {/* A loader has no enabled state to flip: it is a hook next to the
+                            game, present or not. Removing it is still the user's to do. */}
+                        {!isLoader(installed) && (
+                            <Toggle
+                                checked={installed.enabled}
+                                onChange={(v) => (v ? onEnable() : onDisable())}
+                                disabled={!canAct || !!installed.missing}
+                            />
+                        )}
                         <Tooltip content={t('common.remove')}>
                             <Button
                                 variant="danger"

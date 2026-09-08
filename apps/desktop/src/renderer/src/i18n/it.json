@@ -59,12 +59,6 @@
         "maximize": "Massimizza",
         "restore": "Ripristina",
         "close": "Chiudi",
-        "missingLaunchOption": {
-            "title": "Opzione di avvio mancante",
-            "bodyPre": "È raccomandato per molte mod per caricarle correttamente. Aggiungilo",
-            "location": "Impostazioni > Impostazioni di avvio",
-            "launchAnyway": "Avvia comunque"
-        },
         "sisr": {
             "unsupported": "! SISR auto-launch is not supported on this operating system. The game was launched without it.",
             "notInstalled": "! SISR was not found. The game was launched without it.",
@@ -426,11 +420,7 @@
             "multipleCopies": "{count} copie trovate; l'app di avvio decide quale mod modrex deve avviare."
         },
         "launchOptions": {
-            "title": "Opzioni di avvio",
-            "descriptionPre": "Argomenti aggiuntivi passati a PAYDAY 3 all'avvio.",
-            "descriptionPost": "È raccomandato per caricare le mod correttamente.",
-            "xboxNotePre": "le pzioni di avvio non sono disponibili sul microsoft store. Per abilitare l'avvio delle mod, aggiungi",
-            "xboxNotePost": "nella app xbox sotto PAYDAY 3 > Gestisci > Opzioni di lancio."
+            "title": "Opzioni di avvio"
         },
         "crashReporter": {
             "title": "Pulizia rapporto crash",

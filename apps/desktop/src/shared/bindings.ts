@@ -93,6 +93,8 @@ export const commands = {
 	 *  this one, lacking a hash to key on, cannot safely be.
 	 */
 	identifyModViaNexusContent: (gamePath: string, uid: string, gameId: string) => __TAURI_INVOKE<NexusContentIdentifyOutcome>("identify_mod_via_nexus_content", { gamePath, uid, gameId }),
+	/**  Carries out a replacement the user confirmed after being shown what it removes and keeps. */
+	installConfirmedLoader: (args: ConfirmLoaderArgs) => __TAURI_INVOKE<null>("install_confirmed_loader", { args }),
 	installFromZipEntry: (args: InstallFromZipEntryArgs) => __TAURI_INVOKE<null>("install_from_zip_entry", { args }),
 	/**
 	 *  Installs a Crime Boss archive whose content has no enclosing folder (every entry sits at the
@@ -135,6 +137,28 @@ export const commands = {
 	 */
 	listSources: () => __TAURI_INVOKE<SourceInfo[]>("list_sources"),
 	checkLoader: (loaderId: string, gameId: string, gamePath: string) => __TAURI_INVOKE<boolean>("check_loader", { loaderId, gameId, gamePath }),
+	/**
+	 *  What is installed under a game's UE4SS, for an interface that has to name it rather than
+	 *  only say yes.
+	 * 
+	 *  modworkshopId is the page the installed files are attributable to: the proxy DLL's own
+	 *  bytes when they identify a release, otherwise the page Modrex recorded installing it from.
+	 *  None means present but unattributable, which is not the same as "every page that
+	 *  distributes it", and must not be shown as either.
+	 */
+	ue4ssPresence: (gameId: string, gamePath: string) => __TAURI_INVOKE<LoaderPresence>("ue4ss_presence", { gameId, gamePath }),
+	/**
+	 *  What removing or replacing the installed UE4SS would change, for the confirmation shown
+	 *  before either happens.
+	 */
+	ue4ssPlan: (gameId: string, gamePath: string) => __TAURI_INVOKE<ReplacementPlan>("ue4ss_plan", { gameId, gamePath }),
+	/**
+	 *  Removes the installed UE4SS and forgets which page it came from.
+	 * 
+	 *  The record describes an install that is no longer there, so it goes with the files. A
+	 *  removal that only partly succeeded keeps it, because the loader is still installed.
+	 */
+	uninstallUe4ss: (gameId: string, gamePath: string) => __TAURI_INVOKE<null>("uninstall_ue4ss", { gameId, gamePath }),
 	installLoader: (loaderId: string, gamePath: string) => __TAURI_INVOKE<null>("install_loader", { loaderId, gamePath }),
 	detectedInstalls: (gameId: string) => __TAURI_INVOKE<DetectedInstall[]>("detected_installs", { gameId }),
 	/**
@@ -242,6 +266,13 @@ export type CbFlatPayload_Serialize = {
 	modVersion?: string | null,
 };
 
+export type ConfirmLoaderArgs = {
+	archiveHandle: string,
+	gameId: string,
+	gamePath: string,
+	page: LoaderPage | null,
+};
+
 /**
  *  What the mod says about itself in its own files. A mod with no catalog entry has nothing
  *  else describing it, and the renderer shows these values for exactly those mods
@@ -298,6 +329,15 @@ export type GameSettings_Deserialize = {
 	launchOptions?: string,
 	suppressCrashReporter?: boolean,
 	crimebossInstallMode?: string,
+	/**
+	 *  What installed each mod loader, keyed by loader id.
+	 * 
+	 *  A loader is detected by the files it leaves next to the game, and those files say
+	 *  nothing about which page they came from or what version they are. Several pages
+	 *  distribute the same loader, so without this a user cannot tell which one they have or
+	 *  whether it is current, and every page reads as installed at once.
+	 */
+	loaders?: { [key in string]: LoaderInstall_Deserialize },
 };
 
 export type GameSettings_Serialize = {
@@ -307,6 +347,15 @@ export type GameSettings_Serialize = {
 	launchOptions: string,
 	suppressCrashReporter: boolean,
 	crimebossInstallMode: string,
+	/**
+	 *  What installed each mod loader, keyed by loader id.
+	 * 
+	 *  A loader is detected by the files it leaves next to the game, and those files say
+	 *  nothing about which page they came from or what version they are. Several pages
+	 *  distribute the same loader, so without this a user cannot tell which one they have or
+	 *  whether it is current, and every page reads as installed at once.
+	 */
+	loaders: { [key in string]: LoaderInstall_Serialize },
 };
 
 export type HostPackPayload = HostPackPayload_Serialize | HostPackPayload_Deserialize;
@@ -449,14 +498,14 @@ export type InstallOutcome = InstallOutcome_Serialize | InstallOutcome_Deseriali
  *  user decision first. Returned in the Ok channel so the renderer handles every case
  *  with an exhaustive switch instead of parsing sentinel strings out of errors.
  */
-export type InstallOutcome_Deserialize = "installed" | ({ needsPicker: ZipMultiPakPayload_Deserialize }) & { needsCbFlatConfirm?: never; needsHostChoice?: never } | ({ needsHostChoice: HostPackPayload_Deserialize }) & { needsCbFlatConfirm?: never; needsPicker?: never } | ({ needsCbFlatConfirm: CbFlatPayload_Deserialize }) & { needsHostChoice?: never; needsPicker?: never } | "unrecognized";
+export type InstallOutcome_Deserialize = "installed" | ({ needsPicker: ZipMultiPakPayload_Deserialize }) & { needsCbFlatConfirm?: never; needsHostChoice?: never; needsLoaderConfirm?: never } | ({ needsHostChoice: HostPackPayload_Deserialize }) & { needsCbFlatConfirm?: never; needsLoaderConfirm?: never; needsPicker?: never } | ({ needsCbFlatConfirm: CbFlatPayload_Deserialize }) & { needsHostChoice?: never; needsLoaderConfirm?: never; needsPicker?: never } | ({ needsLoaderConfirm: Ue4ssReplacePayload }) & { needsCbFlatConfirm?: never; needsHostChoice?: never; needsPicker?: never } | "unrecognized";
 
 /**
  *  What an install command produced: a finished install, or an archive that needs a
  *  user decision first. Returned in the Ok channel so the renderer handles every case
  *  with an exhaustive switch instead of parsing sentinel strings out of errors.
  */
-export type InstallOutcome_Serialize = "installed" | ({ needsPicker: ZipMultiPakPayload_Serialize }) & { needsCbFlatConfirm?: never; needsHostChoice?: never } | ({ needsHostChoice: HostPackPayload_Serialize }) & { needsCbFlatConfirm?: never; needsPicker?: never } | ({ needsCbFlatConfirm: CbFlatPayload_Serialize }) & { needsHostChoice?: never; needsPicker?: never } | "unrecognized";
+export type InstallOutcome_Serialize = "installed" | ({ needsPicker: ZipMultiPakPayload_Serialize }) & { needsCbFlatConfirm?: never; needsHostChoice?: never; needsLoaderConfirm?: never } | ({ needsHostChoice: HostPackPayload_Serialize }) & { needsCbFlatConfirm?: never; needsLoaderConfirm?: never; needsPicker?: never } | ({ needsCbFlatConfirm: CbFlatPayload_Serialize }) & { needsHostChoice?: never; needsLoaderConfirm?: never; needsPicker?: never } | ({ needsLoaderConfirm: Ue4ssReplacePayload }) & { needsCbFlatConfirm?: never; needsHostChoice?: never; needsPicker?: never } | "unrecognized";
 
 export type InstalledMod = InstalledMod_Serialize | InstalledMod_Deserialize;
 
@@ -582,6 +631,73 @@ export type LoaderInfo = {
 	 *  flow rather than calling install_loader.
 	 */
 	viaModFlow: boolean,
+};
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall = LoaderInstall_Serialize | LoaderInstall_Deserialize;
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall_Deserialize = {
+	/**
+	 *  Which catalogue the ids below belong to. ModWorkshop and Nexus number their mods
+	 *  independently, so a bare id says nothing without it.
+	 */
+	source?: string,
+	remoteId: string,
+	fileId?: number | null,
+	version?: string,
+	installedAt?: string,
+};
+
+/**
+ *  The mod page a loader was installed from, recorded because the installed files carry no
+ *  identity of their own. Absent for a loader installed outside Modrex or before this was
+ *  recorded, which reads as present-but-unknown rather than absent.
+ */
+export type LoaderInstall_Serialize = {
+	/**
+	 *  Which catalogue the ids below belong to. ModWorkshop and Nexus number their mods
+	 *  independently, so a bare id says nothing without it.
+	 */
+	source: string,
+	remoteId: string,
+	fileId?: number | null,
+	version: string,
+	installedAt: string,
+};
+
+/**
+ *  The mod page a loader package came from. Absent for a dropped file, which has no page
+ *  behind it, and the loader is then recorded as having none rather than as coming from
+ *  whichever page happened to be recorded before.
+ */
+export type LoaderPage = {
+	source: string,
+	remoteId: string,
+	fileId: number | null,
+	version: string,
+};
+
+/**  What is actually installed, as far as the files can prove it. */
+export type LoaderPresence = {
+	/**  A proxy DLL under one of the names a release uses is present. */
+	installed: boolean,
+	/**  The release whose proxy bytes match, when one does. */
+	modworkshopId: number | null,
+	version: string | null,
+	/**
+	 *  Proxy-named files present whose bytes match no known release. Something else may own
+	 *  them, so they are named rather than assumed away.
+	 */
+	unrecognized: string[],
 };
 
 /**
@@ -837,6 +953,23 @@ export type PakAsset = {
 	path: string,
 };
 
+/**
+ *  What installing a UE4SS release over the current one would change.
+ * 
+ *  Conflicts are not here: whether a package would write over something unattributable can
+ *  only be known once that package is in hand, and the replacement refuses by naming them.
+ *  This is what can be shown before the user commits to the download.
+ */
+export type ReplacementPlan = {
+	/**  Loader files the replacement removes. */
+	replaced: string[],
+	/**
+	 *  Mod folders the user added, by name. They are kept, and moved into the incoming
+	 *  release's Mods folder when its layout puts that somewhere else.
+	 */
+	preserved: string[],
+};
+
 export type SisrLaunchIssue = "unsupported" | "notInstalled" | "setupRequired" | "startFailed" | "startUnconfirmed";
 
 export type SisrStatus = {
@@ -879,6 +1012,28 @@ export type StorageUsage = {
 };
 
 export type TopLevelItem = { type: "folder"; id: string } | { type: "mod"; id: string };
+
+/**
+ *  A UE4SS package held back because one is already installed, with what installing it would
+ *  do to the installation that is there.
+ * 
+ *  The loader is not tracked in state.json, so replacing it removes files no mod record
+ *  describes. What those are depends on which release is installed, which is why they are
+ *  named here rather than described in general terms.
+ */
+export type Ue4ssReplacePayload = {
+	/**
+	 *  Backend-issued handle for the held package. The renderer never learns the path, so it
+	 *  cannot name a different archive for the replacement to install.
+	 */
+	archiveHandle: string,
+	modName: string,
+	page: LoaderPage | null,
+	/**  Files of the installed release the replacement removes. */
+	replaced: string[],
+	/**  Mod folders the user added, which it keeps, along with their entries in mods.txt. */
+	preserved: string[],
+};
 
 /**
  *  Whether a mod's installed version can be compared against the remote one.

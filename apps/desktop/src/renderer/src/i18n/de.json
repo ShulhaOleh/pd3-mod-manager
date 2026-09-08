@@ -59,12 +59,6 @@
         "maximize": "Maximieren",
         "restore": "Wiederherstellen",
         "close": "Schließen",
-        "missingLaunchOption": {
-            "title": "Fehlende Startargumente",
-            "bodyPre": "wird empfohlen damit die meisten Mods korrekt laufen. Füge es hinzu",
-            "location": "Einstellungen → Startargumente",
-            "launchAnyway": "Spiel trotzdem starten"
-        },
         "sisr": {
             "unsupported": "Der automatische Start von SISR wird nicht auf diesem Betriebssystem unterstützt. Das Spiel wurde ohne SISR gestartet.",
             "notInstalled": "SISR wurde nicht gefunden. Das Spiel wurde ohne SISR gestartet.",
@@ -426,11 +420,7 @@
             "multipleCopies": "{count} Kopien gefunden – der ausgewählte Launcher entscheidet, welche davon von Modrex modifiziert und gestartet wird."
         },
         "launchOptions": {
-            "title": "Startargumente",
-            "descriptionPre": "Zusätzliche Argumente, die beim Start an PAYDAY 3 übergeben werden.",
-            "descriptionPost": "wird empfohlen, damit die meisten Mods korrekt geladen werden.",
-            "xboxNotePre": "Startargumente werden im Microsoft Store nicht unterstützt. Um Mod-Protokollierung zu aktivieren, füge",
-            "xboxNotePost": "in der Xbox-App unter PAYDAY 3 > Verwalten > Startargumente hinzu."
+            "title": "Startargumente"
         },
         "crashReporter": {
             "title": "Bereinigung des Absturzberichterstatters",

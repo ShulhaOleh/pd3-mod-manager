@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import type { GameId } from '../../../shared/types'
 import { api } from '../api'
-import { buildLoaderModIds, loaderForModId, type LoaderState } from '../loaders'
+import {
+    buildLoaderModIds,
+    loaderForModId,
+    loaderPageInstalled as pageInstalled,
+    type LoaderState,
+} from '../loaders'
 
 /**
  * Per-loader presence state plus the install dispatch, shared by BrowsePage and
@@ -15,6 +20,10 @@ import { buildLoaderModIds, loaderForModId, type LoaderState } from '../loaders'
  */
 export function useLoaderState(activeGame: GameId, gamePath: string | null) {
     const [loaderState, setLoaderState] = useState<LoaderState>({})
+    // Which UE4SS page the installed files are attributable to. Several pages distribute the
+    // same loader, so one presence flag cannot say which of them is on disk; null means
+    // present but unattributable, and no page may claim it then.
+    const [ue4ssPageId, setUe4ssPageId] = useState<number | null>(null)
 
     const setLoaderFlag = useCallback(
         (id: string, value: boolean | null) => setLoaderState((prev) => ({ ...prev, [id]: value })),
@@ -59,8 +68,23 @@ export function useLoaderState(activeGame: GameId, gamePath: string | null) {
         [activeGame, gamePath, refreshLoader]
     )
 
+    const refreshUe4ssPage = useCallback(async () => {
+        if (!gamePath) return
+        const presence = await api.ue4ssPresence(activeGame, gamePath)
+        setUe4ssPageId(presence.modworkshopId ?? null)
+    }, [activeGame, gamePath])
+
+    const loaderPageInstalled = useCallback(
+        (modId: number): boolean | null =>
+            pageInstalled(activeGame, modId, loaderState, ue4ssPageId),
+        [activeGame, loaderState, ue4ssPageId]
+    )
+
     return {
         loaderState,
+        ue4ssPageId,
+        refreshUe4ssPage,
+        loaderPageInstalled,
         setLoaderState,
         setLoaderFlag,
         refreshLoader,

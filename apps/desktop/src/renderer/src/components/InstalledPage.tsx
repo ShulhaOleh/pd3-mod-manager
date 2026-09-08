@@ -18,6 +18,8 @@ import { ZipPickerModal } from './ZipPickerModal'
 import { HostPackModal } from './HostPackModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import { Ue4ssRemoveModal } from './Ue4ssRemoveModal'
 import { MoveCrimeBossTargetModal } from './MoveCrimeBossTargetModal'
 import { UpdatesModal } from './UpdatesModal'
 import { HealthCheckModal } from './HealthCheckModal'
@@ -161,6 +163,10 @@ export function InstalledPage({
         clearUnrecognizedModId,
         cbFlatArchiveData,
         clearCbFlatArchiveData,
+        loaderReplaceData,
+        clearLoaderReplaceData,
+        removingLoader,
+        clearRemovingLoader,
         movingCrimeBossTarget,
         crimeBossMoveBusy,
         crimeBossMoveError,
@@ -177,11 +183,12 @@ export function InstalledPage({
         cancelMoveCrimeBossTarget,
     } = useModActions(gamePath, onRefreshInstalled, activeGame)
 
-    // Sentinel modals (ZipPicker, HostPack, CbFlatArchive) portal to body but Radix focus traps
-    // prevent interacting with them while HealthCheckModal is also open.
+    // Sentinel modals (ZipPicker, HostPack, CbFlatArchive, Ue4ssReplace) portal to body but
+    // Radix focus traps prevent interacting with them while HealthCheckModal is also open.
     useEffect(() => {
-        if (zipPickerData || hostPackData || cbFlatArchiveData) setShowHealth(false)
-    }, [zipPickerData, hostPackData, cbFlatArchiveData])
+        if (zipPickerData || hostPackData || cbFlatArchiveData || loaderReplaceData)
+            setShowHealth(false)
+    }, [zipPickerData, hostPackData, cbFlatArchiveData, loaderReplaceData])
 
     useAutoIdentifyNexusMods({ installed, gamePath, activeGame, onRefreshInstalled })
 
@@ -310,6 +317,23 @@ export function InstalledPage({
                         gamePath={gamePath}
                         onRefreshInstalled={onRefreshInstalled}
                         onClose={clearCbFlatArchiveData}
+                    />
+                )}
+                {loaderReplaceData && gamePath && (
+                    <Ue4ssReplaceModal
+                        payload={loaderReplaceData}
+                        gameId={activeGame}
+                        gamePath={gamePath}
+                        onRefreshInstalled={onRefreshInstalled}
+                        onClose={clearLoaderReplaceData}
+                    />
+                )}
+                {removingLoader && gamePath && (
+                    <Ue4ssRemoveModal
+                        gameId={activeGame}
+                        gamePath={gamePath}
+                        onRefreshInstalled={onRefreshInstalled}
+                        onClose={clearRemovingLoader}
                     />
                 )}
                 {unrecognizedModId !== null && (

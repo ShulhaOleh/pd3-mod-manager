@@ -743,8 +743,14 @@ if (realHistory.available && localeWorktreeStatus) {
     unavailableRealSyncReason = 'real locale files have uncommitted changes'
 }
 
+// A contributor changing en.json alone is a valid commit: the scaffolds and markers that
+// follow are the translation-status workflow's to write, so this cannot require the committed
+// tree to be synchronized already. What it does require is that the plan the workflow would
+// apply is authoritative — every operation mechanical, never target-language text — which is
+// the property that makes deferring the write safe. Idempotence is covered against fixtures,
+// where the plan can be applied and re-planned without touching the real repository.
 test(
-    'the clean real repository has an authoritative no-op sync plan',
+    'the real repository has an authoritative sync plan',
     { skip: unavailableRealSyncReason },
     () => {
         let writes = 0
@@ -752,13 +758,49 @@ test(
             cwd: REPOSITORY_ROOT,
             write() {
                 writes += 1
-                throw new Error('Real no-op integration attempted to write a locale file')
             },
         })
 
-        assert.equal(writes, 0)
-        assert.deepEqual(result.written, [])
-        for (const locale of result.plan.locales) assert.deepEqual(locale.operations, [])
+        const mechanical = new Set(Object.values(SYNC_OPERATION))
+        const sourceKeys = new Set()
+        const collect = (node, prefix) => {
+            for (const [key, value] of Object.entries(node)) {
+                const path = prefix ? `${prefix}.${key}` : key
+                if (value && typeof value === 'object') collect(value, path)
+                else sourceKeys.add(path)
+            }
+        }
+        collect(
+            JSON.parse(readFileSync(join(REPOSITORY_ROOT, I18N_LOCALE_DIR, 'en.json'), 'utf8')),
+            ''
+        )
+        for (const locale of result.plan.locales) {
+            for (const op of locale.operations) {
+                assert.ok(
+                    mechanical.has(op.kind),
+                    `${locale.id} planned a non-mechanical operation: ${op.kind}`
+                )
+                assert.notEqual(op.locale, 'en', 'the source locale is never a sync target')
+                // Removal and creation answer opposite questions of en.json. A scaffold is
+                // removed precisely because English dropped the key; everything else writes
+                // against a source string, and inventing a key English does not have would be
+                // writing text nothing backs.
+                if (op.kind === SYNC_OPERATION.SCAFFOLD_REMOVED) {
+                    assert.ok(
+                        !sourceKeys.has(op.key),
+                        `${op.locale} planned to remove '${op.key}', which en.json still has`
+                    )
+                    continue
+                }
+                assert.ok(
+                    sourceKeys.has(op.key),
+                    `${op.locale} planned ${op.kind} for '${op.key}', which en.json does not have`
+                )
+            }
+        }
+        // A locale is written exactly when the plan gave it something to do.
+        assert.equal(writes, result.plan.locales.filter((l) => l.operations.length > 0).length)
+        assert.equal(result.written.length, writes)
 
         const summary = summarizeHistory(result.finalHistory)
         for (const locale of summary.locales.values()) {

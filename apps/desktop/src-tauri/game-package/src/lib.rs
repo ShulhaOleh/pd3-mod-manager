@@ -287,6 +287,25 @@ pub struct FileFamily {
     pub companions: Vec<String>,
 }
 
+/// What an installed file is named after.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FileNaming {
+    /// The mod's own title, sanitized. The readable default.
+    #[default]
+    ModName,
+    /// The name the file carried in the archive it came from. For families whose engine reads
+    /// the filename itself, where renaming changes what the file means: an Unreal container
+    /// loses its patch priority without the _P its author gave it.
+    Archive,
+}
+
+impl FileNaming {
+    pub fn keeps_archive_name(self) -> bool {
+        matches!(self, FileNaming::Archive)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MarkerMode {
@@ -327,6 +346,8 @@ pub enum Unit {
     File {
         family: FileFamily,
         disabled_suffix: String,
+        #[serde(default)]
+        filename: FileNaming,
     },
     Directory {
         discovery: Discovery,

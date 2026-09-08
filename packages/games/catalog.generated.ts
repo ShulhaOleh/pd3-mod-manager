@@ -40,11 +40,10 @@ export const GAME_SPECS = {
         storageKey: 'pd3',
         hasNews: true,
         supportsPackageViewer: true,
-        requiredLaunchFlag: '-fileopenlog',
         launchers: ['Steam', 'Epic Games', 'Xbox App'],
         modTargets: [
             { id: 'paks', path: 'PAYDAY3/Content/Paks/~mods' },
-            { id: 'ue4ss_mods', path: 'PAYDAY3/Binaries/Win64/Mods' },
+            { id: 'ue4ss_mods', path: 'PAYDAY3/Binaries/Win64/UE4SS/Mods' },
         ],
     },
     pdth: {

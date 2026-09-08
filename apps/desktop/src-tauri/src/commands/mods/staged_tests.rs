@@ -87,15 +87,16 @@ fn a_single_pak_archive_stages_a_file_for_a_file_unit_game() {
     )
     .unwrap();
 
-    assert_eq!(staged.name_source, NameSource::FromModDisplayName);
+    // PD3's paks target keeps archive filenames, so the entry is staged under its own name
+    // inside a temp directory: _P is what gives an Unreal container its patch priority, and a
+    // uuid-named temp file would lose it before the install ever saw it.
+    assert_eq!(staged.name_source, NameSource::FromArchive);
+    assert_eq!(staged.root.file_name().unwrap(), "CoolMod_P.pak");
     assert_eq!(staged.target_tag, None);
     assert_eq!(staged.original_archive.as_deref(), Some(zip.path()));
     assert_eq!(
         staged.cleanup,
-        CleanupPlan::RemoveOwnedFileWithSidecars {
-            path: staged.root.clone(),
-            companions: &["ucas", "utoc"],
-        }
+        CleanupPlan::RemoveOwnedDirectory(staged.root.parent().unwrap().to_path_buf())
     );
     assert_owns_a_real_artifact(&staged);
     assert_never_names_a_protected_root(&staged);

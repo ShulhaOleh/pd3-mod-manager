@@ -39,6 +39,8 @@ import type { HostPackPayload } from './HostPackModal'
 import { UnrecognizedArchiveModal } from './UnrecognizedArchiveModal'
 import { CrimeBossFlatArchiveModal } from './CrimeBossFlatArchiveModal'
 import type { CbFlatArchivePayload } from './CrimeBossFlatArchiveModal'
+import { Ue4ssReplaceModal } from './Ue4ssReplaceModal'
+import type { LoaderReplacePayload } from './Ue4ssReplaceModal'
 import { handleInstallOutcome } from '../installSentinels'
 import { CrimeBossInstallTargetModal } from './CrimeBossInstallTargetModal'
 import { useCrimeBossInstallTarget } from '../hooks/useCrimeBossInstallTarget'
@@ -265,6 +267,7 @@ export function BrowsePage({
     const [hostPackData, setHostPackData] = useState<HostPackPayload | null>(null)
     const [unrecognizedModId, setUnrecognizedModId] = useState<number | null>(null)
     const [cbFlatArchiveData, setCbFlatArchiveData] = useState<CbFlatArchivePayload | null>(null)
+    const [loaderReplaceData, setLoaderReplaceData] = useState<LoaderReplacePayload | null>(null)
     const crimeBossInstallTarget = useCrimeBossInstallTarget(
         activeGame,
         gamePath,
@@ -276,8 +279,15 @@ export function BrowsePage({
     const scrollRef = useRef<HTMLDivElement>(null)
     const fetchIdRef = useRef(0)
     const [lastMeta, setLastMeta] = useState<{ last_page: number; total: number } | null>(null)
-    const { loaderState, setLoaderFlag, refreshLoader, installLoader, loaderModIds } =
-        useLoaderState(activeGame, gamePath)
+    const {
+        loaderState,
+        setLoaderFlag,
+        refreshLoader,
+        installLoader,
+        loaderModIds,
+        ue4ssPageId,
+        refreshUe4ssPage,
+    } = useLoaderState(activeGame, gamePath)
 
     useEffect(() => {
         return api.onDownloadProgress(({ download_id, downloaded, total }) => {
@@ -313,6 +323,7 @@ export function BrowsePage({
                 if (!cancelled) setLoaderFlag(loader.id, v)
             })
         }
+        void refreshUe4ssPage()
         return () => {
             cancelled = true
         }
@@ -493,6 +504,7 @@ export function BrowsePage({
                         onZipMultiPak: setZipPickerData,
                         onHostModPack: setHostPackData,
                         onCbFlatArchive: setCbFlatArchiveData,
+                        onLoaderReplace: setLoaderReplaceData,
                         onUnrecognizedArchive: () => setUnrecognizedModId(modId),
                     })
                 ) {
@@ -580,6 +592,14 @@ export function BrowsePage({
             removeInstalling,
         ]
     )
+
+    // A replacement changes which page the installed files came from, so the card that claims
+    // it has to be re-read rather than assumed to be the one just installed.
+    const refreshAfterLoaderReplace = useCallback(async () => {
+        await refreshUe4ssPage()
+        await refreshLoader('ue4ss')
+        await onRefreshInstalled()
+    }, [refreshUe4ssPage, refreshLoader, onRefreshInstalled])
 
     const handleUninstall = useCallback(
         async (modId: number) => {
@@ -744,6 +764,15 @@ export function BrowsePage({
                     onClose={() => setCbFlatArchiveData(null)}
                 />
             )}
+            {loaderReplaceData && gamePath && (
+                <Ue4ssReplaceModal
+                    payload={loaderReplaceData}
+                    gameId={activeGame}
+                    gamePath={gamePath}
+                    onRefreshInstalled={refreshAfterLoaderReplace}
+                    onClose={() => setLoaderReplaceData(null)}
+                />
+            )}
             {crimeBossInstallTarget.pendingChoice && (
                 <CrimeBossInstallTargetModal
                     modName={crimeBossInstallTarget.pendingChoice.modName}
@@ -891,7 +920,16 @@ export function BrowsePage({
                         new Set(
                             loadersForGame(activeGame)
                                 .filter((l) => loaderState[l.id])
-                                .flatMap((l) => l.modworkshopIds)
+                                .flatMap((l) =>
+                                    // UE4SS ships from several pages, so only the one the
+                                    // installed files came from is marked. Every other loader
+                                    // has a single page, which its presence flag settles.
+                                    l.id === 'ue4ss'
+                                        ? ue4ssPageId === null
+                                            ? []
+                                            : [ue4ssPageId]
+                                        : l.modworkshopIds
+                                )
                         )
                     }
                     onOpen={onOpenDetail}

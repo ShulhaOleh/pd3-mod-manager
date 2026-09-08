@@ -71,6 +71,38 @@ describe('loaderForModId', () => {
     })
 })
 
+describe('loaderPageInstalled', () => {
+    const installed = { ue4ss: true }
+
+    it('reports only the page the installed UE4SS came from', () => {
+        expect(mod.loaderPageInstalled('pd3', 44048, installed, 44048)).toBe(true)
+        expect(mod.loaderPageInstalled('pd3', 47771, installed, 44048)).toBe(false)
+    })
+
+    it('reports no page as installed when nothing can attribute the loader', () => {
+        // A hand-installed build matches no release. Claiming a page for it would make that
+        // page the only one offering an install, and it is a guess either way.
+        expect(mod.loaderPageInstalled('pd3', 44048, installed, null)).toBe(false)
+        expect(mod.loaderPageInstalled('pd3', 47771, installed, null)).toBe(false)
+    })
+
+    it('passes an absent loader through as absent from every page', () => {
+        expect(mod.loaderPageInstalled('pd3', 47771, { ue4ss: false }, null)).toBe(false)
+    })
+
+    it('keeps an unchecked loader unchecked rather than reporting it absent', () => {
+        expect(mod.loaderPageInstalled('pd3', 47771, {}, null)).toBeNull()
+    })
+
+    it('ignores the UE4SS page for a loader with one page of its own', () => {
+        expect(mod.loaderPageInstalled('pdth', 53474, { pdth_overrides: true }, 47771)).toBe(true)
+    })
+
+    it('has no answer for a mod that is not a loader', () => {
+        expect(mod.loaderPageInstalled('pd3', 12345, installed, 44048)).toBeNull()
+    })
+})
+
 describe('buildLoaderModIds', () => {
     it('maps PDTH loader pages to their own states', () => {
         expect(mod.buildLoaderModIds('pdth', { pdth_overrides: true, dahm: false })).toEqual({

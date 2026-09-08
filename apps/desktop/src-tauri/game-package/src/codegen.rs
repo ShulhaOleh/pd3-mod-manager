@@ -5,7 +5,7 @@
 //! compiling rather than silently vanishing from the generated data.
 
 use crate::{
-    Activation, DecoderBinding, Discovery, FileFamily, GamePackage, Install, LoadOrder,
+    Activation, DecoderBinding, Discovery, FileFamily, FileNaming, GamePackage, Install, LoadOrder,
     LoaderBinding, MarkerMode, MarkerRule, ModMetadata, NamePreset, NewsBinding,
     PackageReaderBinding, SourceBinding, StoreBinding, Storefront, Target, TargetLabel, Unit,
 };
@@ -121,6 +121,14 @@ fn discovery(value: &Discovery) -> String {
     }
 }
 
+fn file_naming(value: FileNaming) -> String {
+    let name = match value {
+        FileNaming::ModName => "ModName",
+        FileNaming::Archive => "Archive",
+    };
+    format!("{PATH}::FileNaming::{name}")
+}
+
 fn file_family(value: &FileFamily) -> String {
     let FileFamily {
         extension,
@@ -138,10 +146,12 @@ fn unit(value: &Unit) -> String {
         Unit::File {
             family,
             disabled_suffix,
+            filename,
         } => format!(
-            "{PATH}::Unit::File {{ family: {}, disabled_suffix: {} }}",
+            "{PATH}::Unit::File {{ family: {}, disabled_suffix: {}, filename: {} }}",
             file_family(family),
             text(disabled_suffix),
+            file_naming(*filename),
         ),
         Unit::Directory {
             discovery: policy,

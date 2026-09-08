@@ -16,6 +16,21 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
+/// A loader listed beside the mods rather than tracked among them. It is presence-detected
+/// from files it owns outside any mod folder, so none of the operations below can act on it,
+/// and every one of them refuses rather than reporting a success it did not perform. Checked
+/// on the uid because there is no state entry to look the rest up from.
+fn is_loader_uid(uid: &str) -> bool {
+    uid.starts_with("loader:")
+}
+
+fn loader_refusal(uid: &str) -> String {
+    format!(
+        "'{}' is a mod loader, not a mod: install the release you want over it instead.",
+        uid.trim_start_matches("loader:")
+    )
+}
+
 fn is_host_pack(m: &InstalledMod) -> bool {
     m.location
         .as_deref()
@@ -338,6 +353,9 @@ pub fn uninstall_mod_op(
     uid: &str,
     cfg: &ModEngineConfig,
 ) -> Result<(), String> {
+    if is_loader_uid(uid) {
+        return Err(loader_refusal(uid));
+    }
     let mut state = read_state(state_path).map_err(|e| e.to_string())?;
     let Some(m) = state.mods.iter().find(|m| m.uid == uid).cloned() else {
         return Ok(());
@@ -469,6 +487,9 @@ fn set_activation(
     launcher: Option<&str>,
     enable: bool,
 ) -> Result<(), String> {
+    if is_loader_uid(uid) {
+        return Err(loader_refusal(uid));
+    }
     let mut state = read_state(state_path).map_err(|e| e.to_string())?;
     let Some(m) = state
         .mods
@@ -634,8 +655,16 @@ fn set_activation_in_mods_txt(
     target: &ScanTarget,
     enable: bool,
 ) -> Result<(), String> {
-    let mods_txt = mods_base(game_path, target).join("mods.txt");
+    let base = mods_base(game_path, target);
+    let mods_txt = base.join("mods.txt");
+    let mod_dir = base.join(&m.filename);
     ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, enable)?;
+    if let Err(e) = ue4ss_modstxt::set_enabled_marker(&mod_dir, enable) {
+        return Err(with_undo_failures(
+            e,
+            [ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable)],
+        ));
+    }
     for x in state.mods.iter_mut() {
         if x.uid == uid {
             x.enabled = enable;
@@ -644,14 +673,29 @@ fn set_activation_in_mods_txt(
     let Err(e) = save_state(state_path, state) else {
         return Ok(());
     };
-    let failure = save_error(e);
-    Err(
-        match ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable) {
-            Ok(()) => failure,
-            Err(undo) => {
-                format!("{failure}; the loader's own list could not be put back either: {undo}")
-            }
-        },
+    Err(with_undo_failures(
+        save_error(e),
+        [
+            ue4ss_modstxt::set_enabled_marker(&mod_dir, !enable),
+            ue4ss_modstxt::set_enabled(&mods_txt, &m.filename, !enable),
+        ],
+    ))
+}
+
+/// Reports what the loader's files were left holding when an operation failed and putting them
+/// back failed too.
+///
+/// A rollback that did not happen leaves the loader loading something the saved list does not
+/// describe, and the user is the only one who can reconcile that. Swallowing it would report
+/// one failure while hiding a worse one.
+fn with_undo_failures<const N: usize>(failure: String, undo: [Result<(), String>; N]) -> String {
+    let problems: Vec<String> = undo.into_iter().filter_map(|r| r.err()).collect();
+    if problems.is_empty() {
+        return failure;
+    }
+    format!(
+        "{failure}; the loader's own files could not be put back either: {}",
+        problems.join("; ")
     )
 }
 

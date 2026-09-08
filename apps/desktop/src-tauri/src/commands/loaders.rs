@@ -157,6 +157,74 @@ pub fn list_loaders() -> Vec<LoaderInfo> {
         .collect()
 }
 
+fn launcher_for(app: &AppHandle, game_id: &str) -> Option<String> {
+    let settings = crate::commands::settings::read_settings(app);
+    crate::commands::settings::game_settings(&settings, game_id).and_then(|gs| gs.launcher.clone())
+}
+
+/// What is installed under a game's UE4SS, for an interface that has to name it rather than
+/// only say yes.
+///
+/// modworkshopId is the page the installed files are attributable to: the proxy DLL's own
+/// bytes when they identify a release, otherwise the page Modrex recorded installing it from.
+/// None means present but unattributable, which is not the same as "every page that
+/// distributes it", and must not be shown as either.
+#[tauri::command]
+#[specta::specta]
+pub fn ue4ss_presence(
+    app: AppHandle,
+    game_id: String,
+    game_path: String,
+) -> crate::commands::ue4ss::LoaderPresence {
+    let settings = crate::commands::settings::read_settings(&app);
+    let launcher = launcher_for(&app, &game_id);
+    let mut found = crate::commands::ue4ss::presence(&game_id, &game_path, launcher.as_deref());
+    if found.installed && found.modworkshop_id.is_none() {
+        let recorded = crate::commands::settings::game_settings(&settings, &game_id)
+            .and_then(|gs| gs.loaders.get("ue4ss"))
+            .filter(|r| r.source == "modworkshop");
+        if let Some(record) = recorded {
+            found.modworkshop_id = record.remote_id.parse().ok();
+            if found.version.is_none() && !record.version.is_empty() {
+                found.version = Some(record.version.clone());
+            }
+        }
+    }
+    found
+}
+
+/// What removing or replacing the installed UE4SS would change, for the confirmation shown
+/// before either happens.
+#[tauri::command]
+#[specta::specta]
+pub fn ue4ss_plan(
+    app: AppHandle,
+    game_id: String,
+    game_path: String,
+) -> Result<crate::commands::ue4ss::ReplacementPlan, String> {
+    crate::commands::ue4ss::plan_replacement(
+        &game_id,
+        &game_path,
+        launcher_for(&app, &game_id).as_deref(),
+    )
+}
+
+/// Removes the installed UE4SS and forgets which page it came from.
+///
+/// The record describes an install that is no longer there, so it goes with the files. A
+/// removal that only partly succeeded keeps it, because the loader is still installed.
+#[tauri::command]
+#[specta::specta]
+pub fn uninstall_ue4ss(app: AppHandle, game_id: String, game_path: String) -> Result<(), String> {
+    crate::commands::ue4ss::uninstall(
+        &game_id,
+        &game_path,
+        launcher_for(&app, &game_id).as_deref(),
+    )?;
+    crate::commands::settings::record_loader_install(&app, &game_id, "ue4ss", None);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn check_loader(

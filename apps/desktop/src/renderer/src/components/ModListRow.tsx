@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './ui/Button'
+import { isLoader } from '../hooks/installedUtils'
 import { Trash2, RotateCcw, Image as ImageIcon } from 'lucide-react'
 import { Toggle } from './Toggle'
 import type { InstalledMod, ModSummary } from '../../../shared/types'
@@ -135,11 +136,15 @@ export function ModListRow({
                             </button>
                         </>
                     )}
-                    <Toggle
-                        checked={installed.enabled}
-                        onChange={(v) => (v ? onEnable() : onDisable())}
-                        disabled={!canAct || !!installed.missing}
-                    />
+                    {/* A loader has no enabled state to flip: it is a hook next to the game,
+                        present or not. Removing it is still the user's to do. */}
+                    {!isLoader(installed) && (
+                        <Toggle
+                            checked={installed.enabled}
+                            onChange={(v) => (v ? onEnable() : onDisable())}
+                            disabled={!canAct || !!installed.missing}
+                        />
+                    )}
                     <Tooltip content={t('common.remove')}>
                         <Button
                             variant="danger"
