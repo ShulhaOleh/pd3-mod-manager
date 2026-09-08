@@ -23,9 +23,6 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 
 - Fixed installing a file from the Manage Files list picking the wrong one when a mod's archive holds two files with the same name in different folders.
 - Fixed installing the wrong file from an archive that contains two entries whose names look the same, such as a mod packaged with both forward and back slashes in its paths. Each entry you pick now installs its own contents.
-- Archives waiting on a choice, such as picking which files to install, are now tracked by Modrex itself rather than by a file path passed back from the interface, so only the archive Modrex staged can be opened or removed.
-- Opening the log from Settings now opens the log file itself instead of writing a copy to a predictable name in the system temporary folder, which another program could have redirected at one of your own files.
-- Fixed cleanup after installing a .pdmod file or a loose non-archive file being able to target the system temporary folder instead of only the files Modrex had staged there.
 - Fixed Nexus Mods sign-in and website mod downloads not reaching Modrex on Linux.
 - Fixed enabling or disabling a mod being reported as done when its files could not be moved, such as while the game is running.
 - Fixed a mod being left split between folders when its .ucas or .utoc file could not be moved with its pak.
@@ -35,6 +32,12 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 - Fixed one UE4SS release reading as installed on another release's page, leaving no way to switch between them.
 - Fixed installing UE4SS leaving an older one hooked into the game beside it.
 - Fixed your own Lua mods being left in the old folder when a UE4SS update moves where the loader reads them.
+
+### Security
+
+- Opening the log from Settings now opens the log file itself instead of writing a copy to a predictable name in the system temporary folder, which another program could have redirected at one of your own files.
+- Cleanup after installing a .pdmod file or a loose non-archive file can no longer reach outside the files Modrex staged, and refuses a link rather than following it out of the temporary folder.
+- Archives waiting on a choice, such as picking which files to install, are now tracked by Modrex itself rather than by a file path passed back from the interface, so only the archive Modrex staged can be opened or removed.
 
 ## 0.14.0
 
