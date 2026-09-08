@@ -692,7 +692,9 @@ test('current real status uses compact one-row semantics without recommendations
         assert.ok(row.endsWith(segments.join(', ')), `${target.locale} row: ${row}`)
     }
 
-    assert.doesNotMatch(text, /Next:|0 missing|0 review/u)
+    // Anchored on a word boundary so a real count ending in zero, such as 20 missing, is not
+    // read as the zero segment this is checking for.
+    assert.doesNotMatch(text, /Next:|0 missing|0 review/u)
     assert.equal(stderr.value(), '')
 })
 
