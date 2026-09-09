@@ -164,24 +164,6 @@ The App.tsx startup notice and English diesel3Notice namespace are already remov
 
 ---
 
-## TODO: drop-electron-compat
-
-After all users have migrated from Electron to Tauri (confirm by checking analytics or
-waiting until the Tauri build has been stable for several releases), remove the following:
-
-### release.yml
-- Remove the "Rename Linux artifacts for electron-updater compat" step
-- Remove `linux-deb/pd3-mod-manager.deb` and `linux-rpm/pd3-mod-manager.rpm` from the publish files list
-- Remove the "Generate latest.yml and latest-linux.yml (electron-updater compat)" step
-- Remove `latest.yml` and `latest-linux.yml` from the publish files list
-- Linux artifacts will then upload under Tauri's native names
-
-### settings.rs + lib.rs
-- Delete `migrate_from_electron` from `settings.rs`
-- Remove its call site in `lib.rs`
-
----
-
 ## TODO: pak-analyzer
 
 The desktop's commands/pak_viewer.rs already reads pak/IoStore paths locally. This

@@ -372,10 +372,6 @@ jobs:
                   mv "$APPIMAGE" linux-appimage/modrex_x86_64.AppImage
                   mv "${APPIMAGE}.sig" linux-appimage/modrex_x86_64.AppImage.sig
 
-                  # Legacy Electron clients request these package names.
-                  cp linux-deb/modrex_x86_64.deb linux-deb/pd3-mod-manager.deb
-                  cp linux-rpm/modrex_x86_64.rpm linux-rpm/pd3-mod-manager.rpm
-
             - name: Generate latest.json (tauri-plugin-updater)
               run: |
                   TAG=$GITHUB_REF_NAME
@@ -465,48 +461,6 @@ jobs:
                     echo '::error::RPM is missing the pd3-mod-manager obsoletion'
                     exit 1
                   fi
-                  if ! cmp -s linux-deb/modrex_x86_64.deb linux-deb/pd3-mod-manager.deb; then
-                    echo '::error::Legacy DEB is not identical to the signed updater package'
-                    exit 1
-                  fi
-                  if ! cmp -s linux-rpm/modrex_x86_64.rpm linux-rpm/pd3-mod-manager.rpm; then
-                    echo '::error::Legacy RPM is not identical to the signed updater package'
-                    exit 1
-                  fi
-
-            # Legacy Electron clients consume these manifests.
-            - name: Generate latest.yml and latest-linux.yml (electron-updater compat)
-              run: |
-                  VERSION=${{ steps.ver.outputs.version }}
-                  DATE=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-                  WIN_EXE=windows-nsis/modrex_x86_64.exe
-                  WIN_FILENAME=$(basename "$WIN_EXE")
-                  WIN_SIZE=$(stat -c %s "$WIN_EXE")
-                  WIN_SHA512=$(openssl dgst -sha512 -binary "$WIN_EXE" | base64 -w 0)
-                  {
-                    echo "version: $VERSION"
-                    echo "files:"
-                    echo "  - url: $WIN_FILENAME"
-                    echo "    sha512: $WIN_SHA512"
-                    echo "    size: $WIN_SIZE"
-                    echo "path: $WIN_FILENAME"
-                    echo "sha512: $WIN_SHA512"
-                    echo "releaseDate: '$DATE'"
-                  } > latest.yml
-                  LINUX_APPIMAGE=linux-appimage/modrex_x86_64.AppImage
-                  LINUX_FILENAME=$(basename "$LINUX_APPIMAGE")
-                  LINUX_SIZE=$(stat -c %s "$LINUX_APPIMAGE")
-                  LINUX_SHA512=$(openssl dgst -sha512 -binary "$LINUX_APPIMAGE" | base64 -w 0)
-                  {
-                    echo "version: $VERSION"
-                    echo "files:"
-                    echo "  - url: $LINUX_FILENAME"
-                    echo "    sha512: $LINUX_SHA512"
-                    echo "    size: $LINUX_SIZE"
-                    echo "path: $LINUX_FILENAME"
-                    echo "sha512: $LINUX_SHA512"
-                    echo "releaseDate: '$DATE'"
-                  } > latest-linux.yml
 
             - name: Publish release
               uses: softprops/action-gh-release@v3
@@ -517,12 +471,8 @@ jobs:
                   files: |
                       windows-nsis/modrex_x86_64.exe
                       linux-deb/modrex_x86_64.deb
-                      linux-deb/pd3-mod-manager.deb
                       linux-rpm/modrex_x86_64.rpm
-                      linux-rpm/pd3-mod-manager.rpm
                       linux-appimage/modrex_x86_64.AppImage
                       latest.json
-                      latest.yml
-                      latest-linux.yml
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

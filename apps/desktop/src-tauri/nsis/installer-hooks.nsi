@@ -1,7 +1,9 @@
 ; Modrex installer hooks
 ;
-; Runs the existing uninstaller before installing new files, covering the full
-; upgrade chain: Electron ("PD3 Mod Manager") -> Tauri old identifier -> current.
+; Runs the existing uninstaller before installing new files, for an install left by the
+; old Tauri identifier. Only that identifier is covered: electron-builder can register
+; its uninstall entry under a generated GUID rather than the appId, so an Electron-era
+; install is not reachable through this key.
 ; App data (%APPDATA%\modrex\) is never touched by the uninstaller.
 
 !macro NSIS_HOOK_PREINSTALL

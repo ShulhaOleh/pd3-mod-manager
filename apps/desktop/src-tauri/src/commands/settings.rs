@@ -357,47 +357,6 @@ pub fn migrate_from_old_identifier(app: &AppHandle) {
     }
 }
 
-pub fn migrate_from_electron(app: &AppHandle) {
-    let new_settings = settings_path(app);
-    if new_settings.exists() {
-        return;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let Ok(appdata) = std::env::var("APPDATA") else {
-            return;
-        };
-        let old_dir = PathBuf::from(appdata).join("PD3 Mod Manager");
-        let new_dir = new_settings.parent().unwrap();
-        let _ = std::fs::create_dir_all(new_dir);
-        if old_dir.join("settings.json").exists() {
-            let _ = std::fs::copy(old_dir.join("settings.json"), &new_settings);
-        }
-        let old_index = old_dir.join("mod-index.db");
-        let new_index = new_dir.join("mod-index.db");
-        if old_index.exists() && !new_index.exists() {
-            let _ = std::fs::copy(old_index, new_index);
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let Ok(home) = std::env::var("HOME") else {
-            return;
-        };
-        let old_dir = PathBuf::from(home).join(".config").join("pd3-mod-manager");
-        let new_dir = new_settings.parent().unwrap();
-        let _ = std::fs::create_dir_all(new_dir);
-        if old_dir.join("settings.json").exists() {
-            let _ = std::fs::copy(old_dir.join("settings.json"), &new_settings);
-        }
-        let old_index = old_dir.join("mod-index.db");
-        let new_index = new_dir.join("mod-index.db");
-        if old_index.exists() && !new_index.exists() {
-            let _ = std::fs::copy(old_index, new_index);
-        }
-    }
-}
-
 /// Returns a backwards-compatible flat view of PD3 settings for the renderer. New callers
 /// take get_game_settings instead, which is per-game rather than pinned to pd3.
 #[tauri::command]
