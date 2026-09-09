@@ -363,22 +363,22 @@
         "installing": "Installiere..."
     },
     "ue4ssReplace": {
-        "title": "! Replace the installed UE4SS?",
-        "body": "! {name} replaces the UE4SS that is already installed. The installed release is removed first: the two put their engine and settings in different places, so leaving it in place would load both.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "modsListNote": "! Your own mods keep their entries in the loader's mod list.",
-        "replace": "! Replace",
-        "replacing": "! Replacing..."
+        "title": "Soll die installierte Version von UE4SS ersetzt werden?",
+        "body": "{name} ersetzt die installierte UE4SS Version. Die installierte Version wird zuerst entfernt: Die beiden Versionen würden ihre Engine und Einstellungen in zwei unterschiedliche Orte packen, d.h. wenn beide installiert beiden würde beides geladen werden.",
+        "removed": "Entfernt",
+        "kept": "Behalten",
+        "nothingOfYours": "Du hast keine eigenen Mods in deinem Mod Ordner des Modloaders.",
+        "modsListNote": "Deine eigenen Mods behalten ihre Einträge in der Liste des Modloaders.",
+        "replace": "Ersetzen",
+        "replacing": "Ersetze..."
     },
     "ue4ssRemove": {
-        "title": "! Remove UE4SS?",
-        "body": "! UE4SS is what loads Lua mods, so removing it stops them running until you install it again. Only the files it installed are deleted.",
-        "removed": "! Removed",
-        "kept": "! Kept",
-        "nothingOfYours": "! You have no mods of your own in the loader's Mods folder.",
-        "removing": "! Removing..."
+        "title": "UE4SS entfernen?",
+        "body": "UE4SS gibt dem Spiel die Möglichkeit LUA Mods zu laden. UE4SS zu entfernen würde diese Mods deaktiveren bis sie es wieder installieren. Nur installierte Dateien werden entfernt.",
+        "removed": "UE4SS entfernt",
+        "kept": "UE4SS behalten.",
+        "nothingOfYours": "Sie haben keine Mods im Modsordner des Modloaders.",
+        "removing": "Entferne..."
     },
     "depsWarning": {
         "title": "Fehlende erforderliche Abhängigkeiten",
@@ -439,8 +439,8 @@
         },
         "launchOptions": {
             "title": "Startargumente",
-            "description": "! {flag} is needed for most of this game's mods to load correctly.",
-            "xboxNote": "! Launch options are not supported on Microsoft Store."
+            "description": "{flag} wird benötigt damit die meisten Mods von diesem Spiel laden.",
+            "xboxNote": "Startoptionen werden nicht von Microsoft Store untersützt."
         },
         "crashReporter": {
             "title": "Bereinigung des Absturzberichterstatters",
