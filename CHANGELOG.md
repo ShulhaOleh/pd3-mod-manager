@@ -4,6 +4,8 @@ All notable changes to Modrex are documented in this file. Each version's sectio
 
 ## Unreleased
 
+## 0.15.0
+
 ### Added
 
 - Added Italian as a language option for the app's interface.
